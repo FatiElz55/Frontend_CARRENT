@@ -274,27 +274,28 @@ function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) 
   };
 
   const renderAccountView = () => (
-    <div className="owner-content">
-      <div className="signin-header">
-        <h2 className="signin-title signup-title-purple">Account</h2>
-        <p className="signin-subtitle">
+    <div className="bg-white/60 dark:bg-indigo-950/40 backdrop-blur-xl rounded-2xl shadow-lg border border-gray-200/30 dark:border-purple-800/20 p-6 sm:p-8">
+      <div className="mb-8">
+        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">Account</h2>
+        <p className="text-gray-600 dark:text-white/70">
           Manage your account settings and profile.
         </p>
       </div>
-      <div style={{ padding: "20px 0" }}>
-        {userData && (
-          <>
-            {/* Profile Picture Section */}
-            <div className="account-profile-section">
-              <div className="account-profile-avatar">
+      
+      {userData && (
+        <>
+          {/* Profile Picture Section */}
+          <div className="flex flex-col items-center mb-8">
+            <div className="relative">
+              <div className="w-32 h-32 rounded-full overflow-hidden bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-4xl font-bold shadow-lg">
                 {userData.profilePicture ? (
                   <img
                     src={userData.profilePicture}
                     alt="Profile"
-                    className="account-profile-img"
+                    className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span className="account-profile-initials">{getInitials()}</span>
+                  <span>{getInitials()}</span>
                 )}
               </div>
               <input
@@ -306,44 +307,60 @@ function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) 
               />
               <button
                 type="button"
-                className="change-picture-button"
                 onClick={handleChangePictureClick}
+                className="absolute bottom-0 right-0 p-2 bg-indigo-600 dark:bg-purple-600 text-white rounded-full shadow-lg hover:bg-indigo-700 dark:hover:bg-purple-700 transition-colors"
+                title="Change photo"
               >
-                {userData.profilePicture ? "Change Picture" : "Add Picture"}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
               </button>
             </div>
+            <button
+              type="button"
+              onClick={handleChangePictureClick}
+              className="mt-4 px-4 py-2 text-sm font-medium text-indigo-600 dark:text-purple-300 bg-indigo-50 dark:bg-indigo-900/40 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors"
+            >
+              {userData.profilePicture ? "Change Picture" : "Add Picture"}
+            </button>
+          </div>
 
-            <div className="account-info-item">
-              <p className="account-info-label">Name:</p>
-              <p className="account-info-value">
-                {userData.name}
-              </p>
+          {/* Account Information */}
+          <div className="space-y-6 mb-8">
+            <div className="grid sm:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Name</label>
+                <p className="px-4 py-3 bg-gray-50 dark:bg-indigo-900/40 rounded-lg text-gray-900 dark:text-white">
+                  {userData.name}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Email</label>
+                <p className="px-4 py-3 bg-gray-50 dark:bg-indigo-900/40 rounded-lg text-gray-900 dark:text-white">
+                  {userData.email}
+                </p>
+              </div>
             </div>
-            <div className="account-info-item">
-              <p className="account-info-label">Email:</p>
-              <p className="account-info-value">
-                {userData.email}
-              </p>
-            </div>
-            <div className="account-info-item">
-              <p className="account-info-label">Role:</p>
-              <p className="account-info-value">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Role</label>
+              <p className="px-4 py-3 bg-gray-50 dark:bg-indigo-900/40 rounded-lg text-gray-900 dark:text-white">
                 Car Owner
               </p>
             </div>
-          </>
-        )}
-        {onSignOut && (
-          <button
-            type="button"
-            className="signin-button"
-            onClick={onSignOut}
-            style={{ marginTop: "20px", width: "100%" }}
-          >
-            Sign Out
-          </button>
-        )}
-      </div>
+          </div>
+        </>
+      )}
+      
+      {onSignOut && (
+        <button
+          type="button"
+          onClick={onSignOut}
+          className="w-full py-3 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
+        >
+          Sign Out
+        </button>
+      )}
     </div>
   );
 
@@ -439,7 +456,7 @@ function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) 
       ) : activeTab === "contact" ? (
         <ContactView />
       ) : (
-        <div className="signin-card owner-card">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {renderAccountView()}
         </div>
       )}

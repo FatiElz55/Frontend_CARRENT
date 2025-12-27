@@ -19,6 +19,20 @@ export default function ProfilePage() {
   const users = JSON.parse(localStorage.getItem("carrent_users") || "[]");
   const userData = users.find(u => u.id === currentUser.id) || {};
   
+  // Load bookings count
+  const bookingsCount = (() => {
+    try {
+      if (currentUser?.id) {
+        const bookingsKey = `carrent_bookings_${currentUser.id}`;
+        const bookings = JSON.parse(localStorage.getItem(bookingsKey) || "[]");
+        return bookings.length;
+      }
+    } catch (err) {
+      return 0;
+    }
+    return 0;
+  })();
+  
   const [profileData, setProfileData] = useState({
     name: userData.name || "",
     email: userData.email || "",
@@ -263,11 +277,12 @@ export default function ProfilePage() {
                 <p className="text-gray-500 dark:text-white/70">{profileData.email}</p>
                 
                 {/* Stats */}
-                
+                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-purple-800/30">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-indigo-600 dark:text-purple-300">12</div>
+                    <div className="text-2xl font-bold text-indigo-600 dark:text-purple-300">{bookingsCount}</div>
                     <div className="text-sm text-gray-500 dark:text-white/70">Bookings</div>
                   </div>
+                </div>
                   
                 
               </div>
