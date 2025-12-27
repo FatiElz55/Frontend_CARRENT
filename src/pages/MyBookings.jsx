@@ -452,6 +452,34 @@ export default function MyBookings({ isEmbedded = false }) {
   const [bookingToCancel, setBookingToCancel] = useState(null);
   const [bookings, setBookings] = useState([]);
 
+  // Handle explore vehicles navigation
+  const handleExploreVehicles = () => {
+    if (isEmbedded) {
+      // If embedded in owner page, switch to home tab (catalogue)
+      const currentUser = localStorage.getItem("carrent_current_user");
+      if (currentUser) {
+        try {
+          const user = JSON.parse(currentUser);
+          if (user.role === "owner" || user.role === "OWNER") {
+            // Navigate to owner page and set home tab
+            navigate("/owner");
+            if (user.id) {
+              localStorage.setItem(`carrent_owner_active_tab_${user.id}`, "home");
+            }
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: "home" }));
+            }, 100);
+            return;
+          }
+        } catch (err) {
+          // Fall through to regular navigation
+        }
+      }
+    }
+    // Regular client navigation to catalogue
+    navigate("/catalogue");
+  };
+
   // Load bookings from localStorage
   useEffect(() => {
     const currentUser = localStorage.getItem("carrent_current_user");
@@ -569,29 +597,7 @@ export default function MyBookings({ isEmbedded = false }) {
           ) : (
             <EmptyState 
               filter={filter} 
-              onExplore={() => {
-                if (isEmbedded) {
-                  // If embedded in owner page, switch to catalogue tab
-                  const currentUser = localStorage.getItem("carrent_current_user");
-                  if (currentUser) {
-                    try {
-                      const user = JSON.parse(currentUser);
-                      const isOwner = user.role === "owner" || user.role === "OWNER";
-                      if (isOwner) {
-                        // Switch to home tab (catalogue) in owner page
-                        localStorage.setItem(`carrent_owner_active_tab_${user.id}`, "home");
-                        window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: "home" }));
-                        navigate("/owner");
-                        return;
-                      }
-                    } catch (err) {
-                      // Fall through to regular navigation
-                    }
-                  }
-                }
-                // Regular client navigation
-                navigate("/catalogue");
-              }}
+              onExplore={handleExploreVehicles}
             />
           )}
         </AnimatePresence>

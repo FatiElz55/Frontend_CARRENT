@@ -9,7 +9,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
-export default function DetailsModal({ car, onClose }) {
+export default function DetailsModal({ car, onClose, isEmbedded = false, onReserve }) {
   const navigate = useNavigate();
   const [activeIndex, setActiveIndex] = useState(0);
   const [touchStart, setTouchStart] = useState(null);
@@ -94,8 +94,14 @@ export default function DetailsModal({ car, onClose }) {
 
   const handleReserve = () => {
     onClose();
-    navigate(`/reservation/${car.id}`);
-    toast.success("Redirecting to reservation page");
+    if (isEmbedded && onReserve) {
+      // If embedded, use callback instead of navigation
+      onReserve(car);
+    } else {
+      // Regular navigation for non-embedded mode
+      navigate(`/reservation/${car.id}`);
+      toast.success("Redirecting to reservation page");
+    }
   };
 
   // Zoom handlers

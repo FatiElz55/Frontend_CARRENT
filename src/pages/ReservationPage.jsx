@@ -595,8 +595,9 @@ const StepContent = ({ step, formData, onFormChange, onToggleExtra, days, subTot
   }
 };
 
-export default function ReservationPage() {
-  const { carId } = useParams();
+export default function ReservationPage({ isEmbedded = false, carId: propCarId }) {
+  const { carId: paramCarId } = useParams();
+  const carId = propCarId || paramCarId; // Use prop if embedded, otherwise use param
   const navigate = useNavigate();
   const [car, setCar] = useState(null);
   const [formData, setFormData] = useState({
@@ -769,7 +770,25 @@ export default function ReservationPage() {
     // Redirect after success
     setTimeout(() => {
       setIsSubmitting(false);
-      navigate("/bookings");
+      if (isEmbedded) {
+        // If embedded, switch to bookings tab in owner page
+        const currentUser = localStorage.getItem("carrent_current_user");
+        if (currentUser) {
+          try {
+            const user = JSON.parse(currentUser);
+            if (user.role === "owner" || user.role === "OWNER") {
+              if (user.id) {
+                localStorage.setItem(`carrent_owner_active_tab_${user.id}`, "bookings");
+              }
+              window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: "bookings" }));
+            }
+          } catch (err) {
+            // Fall through to regular navigation
+          }
+        }
+      } else {
+        navigate("/bookings");
+      }
     }, 1500);
   };
 
@@ -818,7 +837,25 @@ export default function ReservationPage() {
       setStep(step - 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      navigate(-1);
+      if (isEmbedded) {
+        // If embedded, go back to catalogue (home tab)
+        const currentUser = localStorage.getItem("carrent_current_user");
+        if (currentUser) {
+          try {
+            const user = JSON.parse(currentUser);
+            if (user.role === "owner" || user.role === "OWNER") {
+              if (user.id) {
+                localStorage.setItem(`carrent_owner_active_tab_${user.id}`, "home");
+              }
+              window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: "home" }));
+            }
+          } catch (err) {
+            // Fall through to regular navigation
+          }
+        }
+      } else {
+        navigate(-1);
+      }
     }
   };
 

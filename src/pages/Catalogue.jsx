@@ -10,7 +10,7 @@ import { Search, Navigation } from "lucide-react";
 // Lazy load modal (loaded only when needed)
 const DetailsModal = lazy(() => import("../components/catalogue/DetailsModal"));
 
-export default function Catalogue({ isEmbedded = false }) {
+export default function Catalogue({ isEmbedded = false, onCarSelect }) {
   const [cars] = useState(CARS);
   const [filter, setFilter] = useState({
     availability: "all", // "all", "available", "reserved"
@@ -192,7 +192,12 @@ export default function Catalogue({ isEmbedded = false }) {
         <AnimatePresence>
           {selectedCar && (
             <Suspense fallback={null}>
-              <DetailsModal car={selectedCar} onClose={closeDetails} />
+              <DetailsModal 
+                car={selectedCar} 
+                onClose={closeDetails}
+                isEmbedded={isEmbedded}
+                onReserve={onCarSelect}
+              />
             </Suspense>
           )}
         </AnimatePresence>

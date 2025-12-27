@@ -6,6 +6,7 @@ import logo from "./assets/logo.png";
 import { FaArrowLeft } from "react-icons/fa";
 import Catalogue from "./pages/Catalogue";
 import MyBookings from "./pages/MyBookings";
+import ReservationPage from "./pages/ReservationPage";
 import OwnerCarCard from "./components/owner/OwnerCarCard";
 import AddCarModal from "./components/owner/AddCarModal";
 
@@ -20,6 +21,7 @@ function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) 
   const [showAddCarModal, setShowAddCarModal] = useState(false);
   const [carToEdit, setCarToEdit] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCarForReservation, setSelectedCarForReservation] = useState(null);
   const fileInputRef = useRef(null);
 
   // Load owner's cars from localStorage
@@ -42,8 +44,12 @@ function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) 
     // Load active tab from localStorage on mount
     if (userData?.id) {
       const storedTab = localStorage.getItem(`carrent_owner_active_tab_${userData.id}`);
-      if (storedTab && (storedTab === "home" || storedTab === "demands" || storedTab === "contact" || storedTab === "profile")) {
+      if (storedTab && (storedTab === "home" || storedTab === "demands" || storedTab === "contact" || storedTab === "profile" || storedTab === "bookings" || storedTab === "reservation")) {
         setActiveTab(storedTab);
+        // If reservation tab but no car selected, go back to home
+        if (storedTab === "reservation" && !selectedCarForReservation) {
+          setActiveTab("home");
+        }
       }
     }
     window.addEventListener("owner-tab-change", handleTabChange);
@@ -342,9 +348,9 @@ function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) 
   );
 
   return (
-    <div className={`owner-page ${clientMode && (activeTab === "home" || activeTab === "bookings") ? "owner-page-client-mode" : ""}`}>
+    <div className={`owner-page ${clientMode && (activeTab === "home" || activeTab === "bookings" || activeTab === "reservation") ? "owner-page-client-mode" : ""}`}>
       {/* Client Mode Switch Banner */}
-      {(activeTab === "home" || activeTab === "demands" || activeTab === "bookings") && (
+      {(activeTab === "home" || activeTab === "demands" || activeTab === "bookings" || activeTab === "reservation") && (
         <div className="client-mode-banner">
           <span className="client-mode-text">Wanna rent a car? switch to client mode</span>
           <label className="client-mode-toggle">
@@ -358,6 +364,28 @@ function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) 
                 if (userData?.id) {
                   localStorage.setItem(`carrent_client_mode_${userData.id}`, isClientMode.toString());
                 }
+                
+                // Switch tabs when toggling client mode
+                if (isClientMode && activeTab === "demands") {
+                  // Switching to client mode from demands -> switch to bookings
+                  setActiveTab("bookings");
+                  if (userData?.id) {
+                    localStorage.setItem(`carrent_owner_active_tab_${userData.id}`, "bookings");
+                  }
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: "bookings" }));
+                  }, 100);
+                } else if (!isClientMode && activeTab === "bookings") {
+                  // Switching to owner mode from bookings -> switch to demands
+                  setActiveTab("demands");
+                  if (userData?.id) {
+                    localStorage.setItem(`carrent_owner_active_tab_${userData.id}`, "demands");
+                  }
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: "demands" }));
+                  }, 100);
+                }
+                
                 // Notify parent if needed (but don't switch pages - owner stays on owner page)
                 if (onSwitchToClient) {
                   onSwitchToClient(isClientMode);
@@ -373,7 +401,27 @@ function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) 
       {activeTab === "home" ? (
         clientMode ? (
           <div className="owner-catalogue-wrapper">
-            <Catalogue isEmbedded={true} />
+            <Catalogue 
+              isEmbedded={true} 
+              onCarSelect={(car) => {
+                setSelectedCarForReservation(car);
+                setActiveTab("reservation");
+                if (userData?.id) {
+                  localStorage.setItem(`carrent_owner_active_tab_${userData.id}`, "reservation");
+                }
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: "reservation" }));
+                }, 100);
+              }}
+            />
+          </div>
+        ) : (
+          renderHomeView()
+        )
+      ) : activeTab === "reservation" && selectedCarForReservation ? (
+        clientMode ? (
+          <div className="owner-catalogue-wrapper">
+            <ReservationPage isEmbedded={true} carId={selectedCarForReservation.id} />
           </div>
         ) : (
           renderHomeView()
