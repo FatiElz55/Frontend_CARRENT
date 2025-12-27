@@ -19,14 +19,8 @@ export default function ProfilePage() {
   const users = JSON.parse(localStorage.getItem("carrent_users") || "[]");
   const userData = users.find(u => u.id === currentUser.id) || {};
   
-  // Split full name into first and last name
-  const nameParts = (userData.name || "").split(" ");
-  const firstName = nameParts[0] || "";
-  const lastName = nameParts.slice(1).join(" ") || "";
-  
   const [profileData, setProfileData] = useState({
-    firstName: firstName,
-    lastName: lastName,
+    name: userData.name || "",
     email: userData.email || "",
     phone: userData.phone || "",
     address: userData.address || "",
@@ -60,7 +54,7 @@ export default function ProfilePage() {
       if (u.id === currentUser.id) {
         return {
           ...u,
-          name: `${profileData.firstName} ${profileData.lastName}`.trim(),
+          name: profileData.name.trim(),
           email: profileData.email,
           phone: profileData.phone,
           address: profileData.address,
@@ -74,7 +68,7 @@ export default function ProfilePage() {
     // Update current user session
     const updatedCurrentUser = {
       ...currentUser,
-      name: `${profileData.firstName} ${profileData.lastName}`.trim(),
+      name: profileData.name.trim(),
       email: profileData.email,
     };
     localStorage.setItem("carrent_current_user", JSON.stringify(updatedCurrentUser));
@@ -242,7 +236,7 @@ export default function ProfilePage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <>{profileData.firstName[0] || ""}{profileData.lastName[0] || ""}</>
+                      <>{profileData.name ? profileData.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : ""}</>
                     )}
                   </div>
                   <input
@@ -264,7 +258,7 @@ export default function ProfilePage() {
                   </motion.button>
                 </div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  {profileData.firstName} {profileData.lastName}
+                  {profileData.name}
                 </h2>
                 <p className="text-gray-500 dark:text-white/70">{profileData.email}</p>
                 
@@ -359,33 +353,18 @@ export default function ProfilePage() {
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2 flex items-center gap-2">
                             <User className="w-4 h-4" />
-                            <span>First Name</span>
+                            <span>Full Name</span>
                           </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              name="firstName"
-                              value={profileData.firstName}
+                              name="name"
+                              value={profileData.name}
                               onChange={handleChange}
                               className="w-full px-4 py-3 border border-gray-300 dark:border-purple-700/30 rounded-lg bg-white dark:bg-indigo-900/40 text-gray-900 dark:text-white focus:border-indigo-500 dark:focus:border-purple-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-purple-500/20 outline-none transition-colors"
                             />
                           ) : (
-                            <p className="px-4 py-3 bg-gray-50 dark:bg-indigo-900/40 rounded-lg text-gray-900 dark:text-white">{profileData.firstName}</p>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">Last Name</label>
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              name="lastName"
-                              value={profileData.lastName}
-                              onChange={handleChange}
-                              className="w-full px-4 py-3 border border-gray-300 dark:border-purple-700/30 rounded-lg bg-white dark:bg-indigo-900/40 text-gray-900 dark:text-white focus:border-indigo-500 dark:focus:border-purple-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-purple-500/20 outline-none transition-colors"
-                            />
-                          ) : (
-                            <p className="px-4 py-3 bg-gray-50 dark:bg-indigo-900/40 rounded-lg text-gray-900 dark:text-white">{profileData.lastName}</p>
+                            <p className="px-4 py-3 bg-gray-50 dark:bg-indigo-900/40 rounded-lg text-gray-900 dark:text-white">{profileData.name}</p>
                           )}
                         </div>
 

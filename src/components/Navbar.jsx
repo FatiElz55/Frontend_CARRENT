@@ -1,17 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Moon, Sun, ChevronDown, LogOut, User, Menu, X } from "lucide-react";
-
-const navLinks = [
-  { name: "Catalogue", path: "/catalogue" },
-  { name: "Bookings", path: "/bookings" },
-  { name: "Contact", path: "#contact" },
-];
+import { Moon, Sun, ChevronDown, LogOut, User, Menu, X, Home, FileText, Mail } from "lucide-react";
 
 function Navbar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false); // desktop dropdown
   const [showMobileProfile, setShowMobileProfile] = useState(false); // mobile accordion
@@ -26,9 +21,81 @@ function Navbar() {
       (!localStorage.getItem("theme") &&
         window.matchMedia("(prefers-color-scheme: dark)").matches);
   });
+  const [clientMode, setClientMode] = useState(false);
+  const [ownerActiveTab, setOwnerActiveTab] = useState("home");
 
   const userButtonRef = useRef(null);
   const navRef = useRef(null);
+
+  // Get current user and client mode status
+  const currentUser = useMemo(() => {
+    try {
+      const data = localStorage.getItem("carrent_current_user");
+      return data ? JSON.parse(data) : null;
+    } catch (err) {
+      return null;
+    }
+  }, []);
+
+  // Check client mode status and owner active tab
+  useEffect(() => {
+    if (currentUser?.id) {
+      const stored = localStorage.getItem(`carrent_client_mode_${currentUser.id}`);
+      setClientMode(stored === "true");
+      const tabStored = localStorage.getItem(`carrent_owner_active_tab_${currentUser.id}`);
+      if (tabStored) {
+        setOwnerActiveTab(tabStored);
+      }
+    }
+    // Listen for client mode and tab changes
+    const handleStorageChange = () => {
+      if (currentUser?.id) {
+        const stored = localStorage.getItem(`carrent_client_mode_${currentUser.id}`);
+        setClientMode(stored === "true");
+        const tabStored = localStorage.getItem(`carrent_owner_active_tab_${currentUser.id}`);
+        if (tabStored) {
+          setOwnerActiveTab(tabStored);
+        }
+      }
+    };
+    // Listen for custom tab change events
+    const handleTabChange = (event) => {
+      setOwnerActiveTab(event.detail);
+      if (currentUser?.id) {
+        localStorage.setItem(`carrent_owner_active_tab_${currentUser.id}`, event.detail);
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("owner-tab-change", handleTabChange);
+    // Also check periodically in case of same-tab updates
+    const interval = setInterval(handleStorageChange, 500);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("owner-tab-change", handleTabChange);
+      clearInterval(interval);
+    };
+  }, [currentUser?.id]);
+
+  // Determine nav links based on user role and client mode
+  const navLinks = useMemo(() => {
+    const isOwner = currentUser?.role === "owner" || currentUser?.role === "OWNER";
+    
+    if (isOwner && !clientMode) {
+      // Owner mode: Home, Demands, Contact, Profile
+      return [
+        { name: "Home", path: "/owner", icon: Home, isButton: false },
+        { name: "Demands", path: "/owner", icon: FileText, isButton: false },
+        { name: "Contact", path: "#contact", icon: Mail, isButton: true },
+      ];
+    } else {
+      // Client mode or regular client: Catalogue, Bookings, Contact, Profile
+      return [
+        { name: "Catalogue", path: "/catalogue", icon: null, isButton: false },
+        { name: "Bookings", path: "/bookings", icon: null, isButton: false },
+        { name: "Contact", path: "#contact", icon: Mail, isButton: true },
+      ];
+    }
+  }, [currentUser?.role, clientMode]);
 
   // Sync theme with document
   useEffect(() => {
@@ -52,6 +119,53 @@ function Navbar() {
       navigate("/#contact");
     }
     setIsMenuOpen(false);
+  };
+
+  const handleOwnerNavClick = (linkName) => {
+    const tabName = linkName.toLowerCase();
+    if (linkName === "Home" || linkName === "Demands") {
+      navigate("/owner");
+      // Set active tab in OwnerPage and store in localStorage
+      if (currentUser?.id) {
+        localStorage.setItem(`carrent_owner_active_tab_${currentUser.id}`, tabName);
+      }
+      setOwnerActiveTab(tabName);
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: tabName }));
+      }, 100);
+    }
+    setIsMenuOpen(false);
+  };
+
+  const handleClientNavClick = (linkName) => {
+    const isOwner = currentUser?.role === "owner" || currentUser?.role === "OWNER";
+    if (isOwner && clientMode) {
+      // Owner in client mode - handle internally
+      if (linkName === "Catalogue") {
+        navigate("/owner");
+        const tabName = "home";
+        if (currentUser?.id) {
+          localStorage.setItem(`carrent_owner_active_tab_${currentUser.id}`, tabName);
+        }
+        setOwnerActiveTab(tabName);
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: tabName }));
+        }, 100);
+      } else if (linkName === "Bookings") {
+        navigate("/owner");
+        const tabName = "bookings";
+        if (currentUser?.id) {
+          localStorage.setItem(`carrent_owner_active_tab_${currentUser.id}`, tabName);
+        }
+        setOwnerActiveTab(tabName);
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: tabName }));
+        }, 100);
+      }
+      setIsMenuOpen(false);
+      return true; // Indicate we handled it
+    }
+    return false; // Let default navigation handle it
   };
 
   const updateDropdownPosition = () => {
@@ -98,15 +212,6 @@ function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showProfile]);
 
-  const currentUser = useMemo(() => {
-    try {
-      const data = localStorage.getItem("carrent_current_user");
-      return data ? JSON.parse(data) : null;
-    } catch (err) {
-      return null;
-    }
-  }, []);
-
   const handleLogout = () => {
     localStorage.removeItem("carrent_current_user");
     navigate("/signin");
@@ -118,8 +223,7 @@ function Navbar() {
   return (
     <nav
       ref={navRef}
-      className="sticky top-0 z-50 bg-white/90 dark:bg-indigo-950/80 backdrop-blur-xl shadow-md"
-      style={{ marginBottom: 0, paddingBottom: 0, borderBottom: 'none' }}
+      className="sticky top-0 z-50 bg-white/90 dark:bg-indigo-950/80 backdrop-blur-xl border-b border-gray-200/60 dark:border-purple-900/40 shadow-md"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 relative">
         <div className="flex items-center justify-between">
@@ -132,32 +236,83 @@ function Navbar() {
 
           {/* Center links (desktop) */}
           <div className="hidden md:flex flex-1 items-center justify-center gap-2">
-            {navLinks.map((link) =>
-              link.name === "Contact" ? (
-                <button
-                  key={link.name}
-                  onClick={handleContactClick}
-                  className={`${linkBase} text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-purple-300`}
-                >
-                  {link.name}
-                </button>
-              ) : (
-                <NavLink
-                  key={link.name}
-                  to={link.path}
-                  className={({ isActive }) =>
-                    `${linkBase} ${
+            {navLinks.map((link) => {
+              const isActive = link.isButton 
+                ? false 
+                : (link.name === "Home" || link.name === "Demands") 
+                  ? location.pathname === "/owner" && ownerActiveTab === link.name.toLowerCase()
+                  : location.pathname === link.path;
+              
+              if (link.isButton) {
+                return (
+                  <button
+                    key={link.name}
+                    onClick={handleContactClick}
+                    className={`${linkBase} ${
                       isActive
                         ? "text-indigo-600 dark:text-purple-300"
                         : "text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-purple-300"
-                    }`
-                  }
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  {link.name}
-                </NavLink>
-              )
-            )}
+                    }`}
+                  >
+                    {link.icon && <link.icon className="w-4 h-4" />}
+                    {link.name}
+                  </button>
+                );
+              } else if (link.name === "Home" || link.name === "Demands") {
+                return (
+                  <button
+                    key={link.name}
+                    onClick={() => handleOwnerNavClick(link.name)}
+                    className={`${linkBase} ${
+                      isActive
+                        ? "text-indigo-600 dark:text-purple-300"
+                        : "text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-purple-300"
+                    }`}
+                  >
+                    {link.icon && <link.icon className="w-4 h-4" />}
+                    {link.name}
+                  </button>
+                );
+              } else {
+                // Handle Catalogue and Bookings for owners in client mode
+                if ((link.name === "Catalogue" || link.name === "Bookings") && 
+                    (currentUser?.role === "owner" || currentUser?.role === "OWNER") && 
+                    clientMode) {
+                  return (
+                    <button
+                      key={link.name}
+                      onClick={() => {
+                        handleClientNavClick(link.name);
+                        setIsMenuOpen(false);
+                      }}
+                      className={`${linkBase} ${
+                        location.pathname === "/owner" && ownerActiveTab === link.name.toLowerCase()
+                          ? "text-indigo-600 dark:text-purple-300"
+                          : "text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-purple-300"
+                      }`}
+                    >
+                      {link.name}
+                    </button>
+                  );
+                }
+                return (
+                  <NavLink
+                    key={link.name}
+                    to={link.path}
+                    className={({ isActive }) =>
+                      `${linkBase} ${
+                        isActive
+                          ? "text-indigo-600 dark:text-purple-300"
+                          : "text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-purple-300"
+                      }`
+                    }
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    {link.name}
+                  </NavLink>
+                );
+              }
+            })}
 
             {/* Profile dropdown trigger (desktop inline) */}
             <div className="relative">
@@ -211,32 +366,86 @@ function Navbar() {
             >
               {/* Links */}
               <div className="space-y-2">
-                {navLinks.map((link) =>
-                  link.name === "Contact" ? (
-                    <button
-                      key={link.name}
-                      onClick={handleContactClick}
-                      className="w-full text-left px-3 py-2 rounded-lg text-sm font-semibold text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-purple-300"
-                    >
-                      {link.name}
-                    </button>
-                  ) : (
-                    <NavLink
-                      key={link.name}
-                      to={link.path}
-                      onClick={() => setIsMenuOpen(false)}
-                      className={({ isActive }) =>
-                        `block px-3 py-2 rounded-lg text-sm font-semibold ${
+                {navLinks.map((link) => {
+                  const isActive = link.isButton 
+                    ? false 
+                    : (link.name === "Home" || link.name === "Demands") 
+                      ? location.pathname === "/owner" && ownerActiveTab === link.name.toLowerCase()
+                      : location.pathname === link.path;
+                  
+                  if (link.isButton) {
+                    return (
+                      <button
+                        key={link.name}
+                        onClick={handleContactClick}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 ${
                           isActive
                             ? "text-indigo-600 dark:text-purple-300 bg-indigo-50/60 dark:bg-purple-900/30"
                             : "text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-purple-300"
-                        }`
-                      }
-                    >
-                      {link.name}
-                    </NavLink>
-                  )
-                )}
+                        }`}
+                      >
+                        {link.icon && <link.icon className="w-4 h-4" />}
+                        {link.name}
+                      </button>
+                    );
+                  } else if (link.name === "Home" || link.name === "Demands") {
+                    return (
+                      <button
+                        key={link.name}
+                        onClick={() => {
+                          handleOwnerNavClick(link.name);
+                          setIsMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 ${
+                          isActive
+                            ? "text-indigo-600 dark:text-purple-300 bg-indigo-50/60 dark:bg-purple-900/30"
+                            : "text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-purple-300"
+                        }`}
+                      >
+                        {link.icon && <link.icon className="w-4 h-4" />}
+                        {link.name}
+                      </button>
+                    );
+                  } else {
+                    // Handle Catalogue and Bookings for owners in client mode (mobile)
+                    if ((link.name === "Catalogue" || link.name === "Bookings") && 
+                        (currentUser?.role === "owner" || currentUser?.role === "OWNER") && 
+                        clientMode) {
+                      return (
+                        <button
+                          key={link.name}
+                          onClick={() => {
+                            handleClientNavClick(link.name);
+                            setIsMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm font-semibold ${
+                            location.pathname === "/owner" && ownerActiveTab === link.name.toLowerCase()
+                              ? "text-indigo-600 dark:text-purple-300 bg-indigo-50/60 dark:bg-purple-900/30"
+                              : "text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-purple-300"
+                          }`}
+                        >
+                          {link.name}
+                        </button>
+                      );
+                    }
+                    return (
+                      <NavLink
+                        key={link.name}
+                        to={link.path}
+                        onClick={() => setIsMenuOpen(false)}
+                        className={({ isActive }) =>
+                          `block px-3 py-2 rounded-lg text-sm font-semibold ${
+                            isActive
+                              ? "text-indigo-600 dark:text-purple-300 bg-indigo-50/60 dark:bg-purple-900/30"
+                              : "text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-purple-300"
+                          }`
+                        }
+                      >
+                        {link.name}
+                      </NavLink>
+                    );
+                  }
+                })}
                 
                 {/* Profile dropdown */}
                 <div>
@@ -334,7 +543,20 @@ function Navbar() {
               <button
                 onClick={() => {
                   setShowProfile(false);
-                  navigate("/profile");
+                  const isOwner = currentUser?.role === "owner" || currentUser?.role === "OWNER";
+                  if (isOwner) {
+                    // For owners, navigate to owner page with profile tab
+                    navigate("/owner");
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: "profile" }));
+                      if (currentUser?.id) {
+                        localStorage.setItem(`carrent_owner_active_tab_${currentUser.id}`, "profile");
+                      }
+                    }, 100);
+                  } else {
+                    // For clients, navigate to profile page
+                    navigate("/profile");
+                  }
                 }}
                 className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-indigo-50/80 dark:hover:bg-indigo-900/30 transition-colors"
               >

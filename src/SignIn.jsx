@@ -36,6 +36,13 @@ function SignIn({ onSignedIn, onGoToSignUp }) {
 
   const toggleTheme = () => setIsDark((prev) => !prev);
 
+  // Clear error when user starts typing
+  useEffect(() => {
+    if (error && (email || password)) {
+      setError("");
+    }
+  }, [email, password]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -109,8 +116,6 @@ function SignIn({ onSignedIn, onGoToSignUp }) {
       setLoading(false);
     }
   };
-
-  console.log("SignIn component rendering"); // Debug log
   
   // Ensure we're on the sign-in page, not owner page
   React.useEffect(() => {
@@ -179,7 +184,10 @@ function SignIn({ onSignedIn, onGoToSignUp }) {
               placeholder="you@example.com"
               value={email}
               autoComplete="email"
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error) setError(""); // Clear error when typing
+              }}
             />
           </div>
 
@@ -195,7 +203,10 @@ function SignIn({ onSignedIn, onGoToSignUp }) {
                 placeholder="Enter your password"
                 value={password}
                 autoComplete="current-password"
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError(""); // Clear error when typing
+                }}
               />
               <button
                 type="button"

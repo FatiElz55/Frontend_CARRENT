@@ -391,22 +391,9 @@
 
 /* Prevent horizontal overflow */
 .signin-page,
-/* Force NO padding on layout containers */
-.min-h-screen {
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
 .owner-page {
   overflow-x: hidden;
   width: 100%;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-.owner-content {
-  padding: 0 !important;
-  margin: 0 !important;
 }
 
 .signin-card,
@@ -655,16 +642,35 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-start;
-  padding: 0 !important; /* NO PADDING - banner must stick to navbar */
-  margin: 0 !important;
+  padding: 0;
+  margin: 0;
   background:
     radial-gradient(circle at top left, rgba(129, 140, 248, 0.25), transparent 55%),
     radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.22), transparent 55%),
     #f5f3ff;
   position: relative;
+  width: 100%;
+  overflow-x: hidden;
 }
+
+.dark .owner-page {
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.15), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(139, 92, 246, 0.12), transparent 55%),
+    #1a0f24;
+}
+
+.owner-page-client-mode {
+  padding: 0;
+}
+
+.owner-page:not(.owner-page-client-mode) {
+  padding: 0;
+  align-items: stretch;
+}
+
 
 .owner-card {
   margin-top: 72px;
@@ -840,26 +846,74 @@
 
 /* Client Mode Switch Banner */
 .client-mode-banner {
-  position: sticky !important;
-  top: 64px !important; /* Will be dynamically set by JavaScript to match Navbar height exactly */
-  z-index: 40 !important; /* Below Navbar (z-50) but above content */
-  width: 100vw !important;
-  max-width: none !important;
-  background: #4c1d95 !important;
-  padding: 14px 20px !important;
+  width: 100vw;
+  max-width: 100vw;
+  background: #4c1d95;
+  padding: 14px 20px;
   border-radius: 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 16px !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   margin: 0 !important;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
-  margin-left: calc(-50vw + 50%) !important; /* Full width trick */
+  margin-left: calc(-50vw + 50%) !important;
   margin-right: calc(-50vw + 50%) !important;
-  box-shadow: 0 4px 16px rgba(76, 29, 149, 0.3) !important;
-  border-top: none !important;
-  border-bottom: none !important;
+  position: relative;
+  z-index: 10;
+  box-sizing: border-box;
+  box-shadow: 0 4px 16px rgba(76, 29, 149, 0.3);
+  left: 0;
+  right: 0;
+}
+
+/* Ensure no gap in client mode - remove any spacing */
+.owner-page-client-mode {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+.owner-page-client-mode .client-mode-banner {
+  margin-top: 0 !important;
+}
+
+.dark .client-mode-banner {
+  background: #5b21b6;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* Owner Catalogue Wrapper - ensures proper spacing and prevents overflow */
+.owner-catalogue-wrapper {
+  width: 100%;
+  margin-top: 0;
+  padding: 0;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.owner-catalogue-wrapper > * {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Remove top padding from Catalogue when embedded to keep banner attached */
+.owner-catalogue-wrapper > div {
+  margin-top: 0 !important;
+}
+
+/* Override Tailwind py-4 padding-top when Catalogue is embedded - target all possible classes */
+.owner-catalogue-wrapper > div[class*="py-4"],
+.owner-catalogue-wrapper > div[class*="py-"] {
+  margin-top: 0 !important;
+}
+
+/* More specific override for embedded Catalogue - add breathing space below banner */
+.owner-page-client-mode .owner-catalogue-wrapper > div {
+  padding-top: 1.5rem !important; /* Add breathing space between banner and filters */
+  padding-bottom: 1rem !important; /* Keep bottom padding */
+  margin-top: 0 !important;
 }
 
 .client-mode-text {
@@ -979,8 +1033,7 @@
   }
   
   .owner-page {
-    padding: 0 !important; /* NO PADDING - banner must stick to navbar */
-    margin: 0 !important;
+    padding: clamp(24px, 6vw, 32px) clamp(12px, 3vw, 16px) clamp(32px, 8vw, 40px);
   }
   
   .owner-card {
@@ -1014,11 +1067,13 @@
   }
   
   .client-mode-banner {
-    top: 48px !important;
-    padding: clamp(10px, 2.5vw, 12px) clamp(12px, 3vw, 16px) !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    padding: clamp(10px, 2.5vw, 12px) clamp(12px, 3vw, 16px);
     margin: 0 !important;
     margin-left: calc(-50vw + 50%) !important;
     margin-right: calc(-50vw + 50%) !important;
+    border-radius: 0 !important;
   }
   
   .client-mode-text {
@@ -1099,8 +1154,7 @@
   }
 
   .owner-page {
-    padding: 0 !important; /* NO PADDING - banner must stick to navbar */
-    margin: 0 !important;
+    padding: 40px 24px 48px;
   }
 
   .owner-card {
@@ -1109,9 +1163,12 @@
   }
 
   .client-mode-banner {
+    width: 100vw !important;
+    max-width: 100vw !important;
     margin: 0 !important;
     margin-left: calc(-50vw + 50%) !important;
     margin-right: calc(-50vw + 50%) !important;
+    border-radius: 0 !important;
   }
 
   .app-brand {
@@ -1136,8 +1193,7 @@
   }
 
   .owner-page {
-    padding: 0 !important; /* NO PADDING - banner must stick to navbar */
-    margin: 0 !important;
+    padding: 48px 32px 56px;
   }
 
   .owner-card {
@@ -1146,9 +1202,12 @@
   }
 
   .client-mode-banner {
+    width: 100vw !important;
+    max-width: 100vw !important;
     margin: 0 !important;
     margin-left: calc(-50vw + 50%) !important;
     margin-right: calc(-50vw + 50%) !important;
+    border-radius: 0 !important;
   }
 
   .app-brand {
@@ -1175,9 +1234,12 @@
   }
 
   .client-mode-banner {
+    width: 100vw !important;
+    max-width: 100vw !important;
     margin: 0 !important;
     margin-left: calc(-50vw + 50%) !important;
     margin-right: calc(-50vw + 50%) !important;
+    border-radius: 0 !important;
   }
 }
 
@@ -1189,9 +1251,12 @@
   }
 
   .client-mode-banner {
+    width: 100vw !important;
+    max-width: 100vw !important;
     margin: 0 !important;
     margin-left: calc(-50vw + 50%) !important;
     margin-right: calc(-50vw + 50%) !important;
+    border-radius: 0 !important;
   }
 }
 
@@ -1199,8 +1264,7 @@
 @media (max-width: 768px) and (orientation: landscape) {
   .signin-page,
   .owner-page {
-    padding: 0 !important; /* NO PADDING - banner must stick to navbar */
-    margin: 0 !important;
+    padding: 24px 16px 32px;
   }
 
   .signin-card,
@@ -1209,9 +1273,12 @@
   }
 
   .client-mode-banner {
+    width: 100vw !important;
+    max-width: 100vw !important;
     margin: 0 !important;
     margin-left: calc(-50vw + 50%) !important;
     margin-right: calc(-50vw + 50%) !important;
+    border-radius: 0 !important;
   }
 
   .app-brand {

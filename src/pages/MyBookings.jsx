@@ -443,7 +443,7 @@ const EmptyState = ({ filter, onExplore }) => {
   );
 };
 
-export default function MyBookings() {
+export default function MyBookings({ isEmbedded = false }) {
   const navigate = useNavigate();
   const [filter, setFilter] = useState("all");
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -569,7 +569,29 @@ export default function MyBookings() {
           ) : (
             <EmptyState 
               filter={filter} 
-              onExplore={() => navigate("/")}
+              onExplore={() => {
+                if (isEmbedded) {
+                  // If embedded in owner page, switch to catalogue tab
+                  const currentUser = localStorage.getItem("carrent_current_user");
+                  if (currentUser) {
+                    try {
+                      const user = JSON.parse(currentUser);
+                      const isOwner = user.role === "owner" || user.role === "OWNER";
+                      if (isOwner) {
+                        // Switch to home tab (catalogue) in owner page
+                        localStorage.setItem(`carrent_owner_active_tab_${user.id}`, "home");
+                        window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: "home" }));
+                        navigate("/owner");
+                        return;
+                      }
+                    } catch (err) {
+                      // Fall through to regular navigation
+                    }
+                  }
+                }
+                // Regular client navigation
+                navigate("/catalogue");
+              }}
             />
           )}
         </AnimatePresence>

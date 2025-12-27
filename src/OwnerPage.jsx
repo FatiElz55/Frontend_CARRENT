@@ -1,8 +1,13 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Plus, Search } from "lucide-react";
 import "../SignIn.css";
 import logo from "./assets/logo.png";
 import { FaArrowLeft } from "react-icons/fa";
 import Catalogue from "./pages/Catalogue";
+import MyBookings from "./pages/MyBookings";
+import OwnerCarCard from "./components/owner/OwnerCarCard";
+import AddCarModal from "./components/owner/AddCarModal";
 
 function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) {
   const [activeTab, setActiveTab] = useState("home");
@@ -11,7 +16,81 @@ function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) 
     const stored = localStorage.getItem(`carrent_client_mode_${userData?.id}`);
     return stored === "true";
   });
+  const [ownerCars, setOwnerCars] = useState([]);
+  const [showAddCarModal, setShowAddCarModal] = useState(false);
+  const [carToEdit, setCarToEdit] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const fileInputRef = useRef(null);
+
+  // Load owner's cars from localStorage
+  useEffect(() => {
+    if (userData?.id) {
+      const cars = JSON.parse(localStorage.getItem(`carrent_owner_cars_${userData.id}`) || "[]");
+      setOwnerCars(cars);
+    }
+  }, [userData?.id]);
+
+  // Listen for navbar tab changes and sync with localStorage
+  useEffect(() => {
+    const handleTabChange = (event) => {
+      const newTab = event.detail;
+      setActiveTab(newTab);
+      if (userData?.id) {
+        localStorage.setItem(`carrent_owner_active_tab_${userData.id}`, newTab);
+      }
+    };
+    // Load active tab from localStorage on mount
+    if (userData?.id) {
+      const storedTab = localStorage.getItem(`carrent_owner_active_tab_${userData.id}`);
+      if (storedTab && (storedTab === "home" || storedTab === "demands" || storedTab === "contact" || storedTab === "profile")) {
+        setActiveTab(storedTab);
+      }
+    }
+    window.addEventListener("owner-tab-change", handleTabChange);
+    return () => window.removeEventListener("owner-tab-change", handleTabChange);
+  }, [userData?.id]);
+
+  // Save cars to localStorage
+  const saveCars = (cars) => {
+    if (userData?.id) {
+      localStorage.setItem(`carrent_owner_cars_${userData.id}`, JSON.stringify(cars));
+      setOwnerCars(cars);
+    }
+  };
+
+  // Handle add/edit car
+  const handleSaveCar = (carData) => {
+    const cars = [...ownerCars];
+    const existingIndex = cars.findIndex(c => c.id === carData.id);
+    
+    if (existingIndex >= 0) {
+      cars[existingIndex] = carData;
+    } else {
+      cars.push(carData);
+    }
+    
+    saveCars(cars);
+    setCarToEdit(null);
+  };
+
+  // Handle delete car
+  const handleDeleteCar = (carId) => {
+    const cars = ownerCars.filter(c => c.id !== carId);
+    saveCars(cars);
+  };
+
+  // Handle edit car
+  const handleEditCar = (car) => {
+    setCarToEdit(car);
+    setShowAddCarModal(true);
+  };
+
+  // Filter cars by search query
+  const filteredCars = ownerCars.filter(car =>
+    car.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    car.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    car.city.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Get user initials for avatar
   const getInitials = () => {
@@ -75,13 +154,121 @@ function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) 
   };
 
   const renderHomeView = () => (
-    <div className="owner-content" style={{ padding: 0, margin: 0 }}>
-      {/* Home content will be added here */}
+    <div className="py-4 px-4 sm:px-6 lg:px-8 text-gray-900 dark:text-white transition-colors duration-300">
+      <div className="max-w-7xl mx-auto">
+        {/* Add New Car Button */}
+        <div className="flex justify-end mb-6">
+          <button
+            onClick={() => {
+              setCarToEdit(null);
+              setShowAddCarModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors font-semibold shadow-lg"
+          >
+            <Plus className="w-5 h-5" />
+            Add New Car
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        {ownerCars.length > 0 && (
+          <div className="mb-6">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by name, brand, or city..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Cars Grid */}
+        {filteredCars.length > 0 ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+          >
+            <AnimatePresence mode="popLayout">
+              {filteredCars.map((car) => (
+                <motion.div
+                  key={car.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <OwnerCarCard
+                    car={car}
+                    onDelete={handleDeleteCar}
+                    onEdit={handleEditCar}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="text-center py-16"
+          >
+            <div className="inline-flex items-center justify-center w-24 h-24 bg-gray-200 dark:bg-gray-800 rounded-full mb-4">
+              <Search className="w-12 h-12 text-gray-400 dark:text-gray-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-700 dark:text-white mb-2">
+              {searchQuery ? "No cars found" : "No cars published yet"}
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400">
+              {searchQuery
+                ? "Try modifying your search criteria"
+                : "Start by adding your first car to the platform"}
+            </p>
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 
+  const renderDemandsView = () => (
+    <div className="py-4 px-4 sm:px-6 lg:px-8 text-gray-900 dark:text-white transition-colors duration-300">
+      <div className="max-w-7xl mx-auto">
+        <div className="bg-white/60 dark:bg-indigo-950/40 backdrop-blur-xl rounded-2xl shadow-lg border border-gray-200/30 dark:border-purple-800/20 p-8 text-center">
+          <p className="text-gray-600 dark:text-gray-400">No demands yet</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Contact view component with scroll effect
+  const ContactView = () => {
+    useEffect(() => {
+      const footer = document.getElementById("contact");
+      if (footer) {
+        footer.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, []);
+
+    return (
+      <div className="py-4 px-4 sm:px-6 lg:px-8 text-gray-900 dark:text-white transition-colors duration-300">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Contact</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Scroll down to see the contact form
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   const renderAccountView = () => (
-    <div className="owner-content" style={{ padding: 0, margin: 0 }}>
+    <div className="owner-content">
       <div className="signin-header">
         <h2 className="signin-title signup-title-purple">Account</h2>
         <p className="signin-subtitle">
@@ -155,9 +342,9 @@ function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) 
   );
 
   return (
-    <div className="owner-page" style={{ padding: 0, margin: 0 }}>
+    <div className={`owner-page ${clientMode && (activeTab === "home" || activeTab === "bookings") ? "owner-page-client-mode" : ""}`}>
       {/* Client Mode Switch Banner */}
-      {activeTab === "home" && (
+      {(activeTab === "home" || activeTab === "demands" || activeTab === "bookings") && (
         <div className="client-mode-banner">
           <span className="client-mode-text">Wanna rent a car? switch to client mode</span>
           <label className="client-mode-toggle">
@@ -182,19 +369,44 @@ function OwnerPage({ userData, onSignOut, onSwitchToClient, onUpdateUserData }) 
         </div>
       )}
 
+      {/* Content based on active tab */}
       {activeTab === "home" ? (
         clientMode ? (
-          <div style={{ marginTop: "20px", width: "100%" }}>
-            <Catalogue />
+          <div className="owner-catalogue-wrapper">
+            <Catalogue isEmbedded={true} />
           </div>
         ) : (
           renderHomeView()
         )
+      ) : activeTab === "bookings" ? (
+        clientMode ? (
+          <div className="owner-catalogue-wrapper">
+            <MyBookings isEmbedded={true} />
+          </div>
+        ) : (
+          renderHomeView()
+        )
+      ) : activeTab === "demands" ? (
+        renderDemandsView()
+      ) : activeTab === "contact" ? (
+        <ContactView />
       ) : (
         <div className="signin-card owner-card">
           {renderAccountView()}
         </div>
       )}
+
+      {/* Add/Edit Car Modal */}
+      <AddCarModal
+        isOpen={showAddCarModal}
+        onClose={() => {
+          setShowAddCarModal(false);
+          setCarToEdit(null);
+        }}
+        onSave={handleSaveCar}
+        carToEdit={carToEdit}
+        ownerName={userData?.name || "Owner"}
+      />
     </div>
   );
 }

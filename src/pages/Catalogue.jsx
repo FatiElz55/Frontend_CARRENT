@@ -10,7 +10,7 @@ import { Search, Navigation } from "lucide-react";
 // Lazy load modal (loaded only when needed)
 const DetailsModal = lazy(() => import("../components/catalogue/DetailsModal"));
 
-export default function Catalogue() {
+export default function Catalogue({ isEmbedded = false }) {
   const [cars] = useState(CARS);
   const [filter, setFilter] = useState({
     availability: "all", // "all", "available", "reserved"
@@ -97,13 +97,13 @@ export default function Catalogue() {
 
   return (
     <div 
-      className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 bg-gray-50 text-gray-900 dark:bg-[#1a0f24] dark:text-white transition-colors duration-300"
+      className={`${isEmbedded ? "py-4 px-4 sm:px-6 lg:px-8" : "min-h-screen py-8 px-4 sm:px-6 lg:px-8"} ${isEmbedded ? "" : "bg-gray-50 dark:bg-[#1a0f24]"} text-gray-900 dark:text-white transition-colors duration-300`}
       onClick={(e) => {
         // Stop propagation but not preventDefault to not block navigation
         e.stopPropagation();
       }}
     >
-      <div className="max-w-7xl mx-auto">
+      <div className={`${isEmbedded ? "w-full" : "max-w-7xl"} mx-auto`}>
         {/* Filters */}
         <FiltersBar cars={cars} onFilter={handleFilter} />
 

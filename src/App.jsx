@@ -39,8 +39,6 @@ function SignInPage() {
   const navigate = useNavigate();
   const currentUser = localStorage.getItem("carrent_current_user");
   
-  console.log("SignInPage rendering, currentUser:", currentUser); // Debug log
-  
   // Redirect if already logged in
   useEffect(() => {
     if (currentUser) {
@@ -122,21 +120,10 @@ function ClientLayout({ children }) {
   return (
     <>
       <Navbar />
-      <div className="pt-6 md:pt-6 min-h-screen dark:!bg-[#1a0f24] bg-gradient-to-br from-gray-50 to-gray-100 transition-colors duration-300">
-        {children}
-      </div>
-      <Footer />
-    </>
-  );
-}
-
-// Owner Layout Component (with Navbar and Footer, no top padding for banner)
-function OwnerLayout({ children }) {
-  return (
-    <>
-      <Navbar />
-      <div className="min-h-screen dark:!bg-[#1a0f24] bg-gradient-to-br from-gray-50 to-gray-100 transition-colors duration-300" style={{ padding: 0, margin: 0 }}>
-        {children}
+      <div className="min-h-screen dark:!bg-[#1a0f24] bg-gradient-to-br from-gray-50 to-gray-100 transition-colors duration-300 overflow-x-hidden w-full">
+        <div className="w-full overflow-x-hidden">
+          {children}
+        </div>
       </div>
       <Footer />
     </>
@@ -245,7 +232,7 @@ function App() {
         <Route
           path="/profile"
           element={
-            <ProtectedRoute requireRole="client">
+            <ProtectedRoute>
               <ClientLayout>
                 <ProfilePage />
               </ClientLayout>
@@ -278,7 +265,7 @@ function App() {
           path="/owner"
           element={
             <ProtectedRoute requireRole="owner">
-              <OwnerLayout>
+              <ClientLayout>
                 <OwnerPage userData={(() => {
                   try {
                     const user = localStorage.getItem("carrent_current_user");
@@ -292,7 +279,7 @@ function App() {
                   window.location.href = "/signin";
                 }}
                 />
-              </OwnerLayout>
+              </ClientLayout>
             </ProtectedRoute>
           }
         />
