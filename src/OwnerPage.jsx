@@ -918,6 +918,9 @@ function OwnerPage({ userData: propUserData, onSignOut, onSwitchToClient, onUpda
                   localStorage.setItem(`carrent_client_mode_${userData.id}`, isClientMode.toString());
                 }
                 
+                // Dispatch custom event for Navbar to immediately update
+                window.dispatchEvent(new CustomEvent("client-mode-change", { detail: isClientMode }));
+                
                 // Switch tabs when toggling client mode
                 if (isClientMode && activeTab === "demands") {
                   // Switching to client mode from demands -> switch to bookings

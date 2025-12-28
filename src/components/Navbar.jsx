@@ -58,6 +58,10 @@ function Navbar() {
         }
       }
     };
+    // Listen for custom client mode change events (for immediate updates)
+    const handleClientModeChange = (event) => {
+      setClientMode(event.detail);
+    };
     // Listen for custom tab change events
     const handleTabChange = (event) => {
       setOwnerActiveTab(event.detail);
@@ -66,11 +70,13 @@ function Navbar() {
       }
     };
     window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("client-mode-change", handleClientModeChange);
     window.addEventListener("owner-tab-change", handleTabChange);
     // Also check periodically in case of same-tab updates
-    const interval = setInterval(handleStorageChange, 500);
+    const interval = setInterval(handleStorageChange, 200); // Reduced to 200ms for faster updates
     return () => {
       window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("client-mode-change", handleClientModeChange);
       window.removeEventListener("owner-tab-change", handleTabChange);
       clearInterval(interval);
     };
