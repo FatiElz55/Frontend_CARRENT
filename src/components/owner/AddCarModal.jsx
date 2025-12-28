@@ -24,6 +24,77 @@ function AddCarModal({ isOpen, onClose, onSave, carToEdit, ownerName }) {
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
 
+  // Compress and resize image to reduce payload size
+  const compressImage = (file, maxWidth = 800, maxHeight = 800, maxSizeKB = 300) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // Calculate new dimensions
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+
+          // Create canvas
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          
+          // Use better quality settings for drawing
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Try progressively lower quality until we meet size requirement
+          const outputFormat = 'image/jpeg';
+          const maxSizeBytes = maxSizeKB * 1024;
+          let currentQuality = 0.7;
+          let attempts = 0;
+          const maxAttempts = 5;
+
+          const tryCompress = () => {
+            const compressedDataUrl = canvas.toDataURL(outputFormat, currentQuality);
+            // Calculate actual base64 size (remove data URL prefix)
+            const base64String = compressedDataUrl.split(',')[1];
+            const base64Size = (base64String.length * 3) / 4; // Approximate size in bytes
+
+            if (base64Size <= maxSizeBytes || attempts >= maxAttempts) {
+              resolve(compressedDataUrl);
+            } else {
+              // Reduce quality and dimensions if needed
+              currentQuality = Math.max(0.3, currentQuality - 0.15);
+              
+              // If quality is getting very low, try reducing dimensions
+              if (currentQuality <= 0.4 && (width > 600 || height > 600)) {
+                width = Math.round(width * 0.85);
+                height = Math.round(height * 0.85);
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+              }
+              
+              attempts++;
+              tryCompress();
+            }
+          };
+
+          tryCompress();
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   useEffect(() => {
     if (carToEdit) {
       setFormData({
@@ -64,28 +135,39 @@ function AddCarModal({ isOpen, onClose, onSave, carToEdit, ownerName }) {
     }
   }, [carToEdit, isOpen]);
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
-    files.forEach((file) => {
+    // Process files sequentially to avoid overwhelming the browser
+    for (const file of files) {
       if (!file.type.startsWith('image/')) {
         alert('Please select only image files');
-        return;
+        continue;
       }
 
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result;
-        if (imagePreviews.length === 0) {
+      // Validate file size (max 5MB original)
+      if (file.size > 5 * 1024 * 1024) {
+        alert(`File ${file.name} is too large. Please use images smaller than 5MB.`);
+        continue;
+      }
+
+      try {
+        // Compress image before converting to base64
+        const compressedBase64 = await compressImage(file);
+        const currentPreviews = imagePreviews.length;
+        
+        if (currentPreviews === 0) {
           // First image is main image
-          setFormData(prev => ({ ...prev, mainImage: base64String }));
+          setFormData(prev => ({ ...prev, mainImage: compressedBase64 }));
         }
-        setImagePreviews(prev => [...prev, base64String]);
-        setFormData(prev => ({ ...prev, images: [...prev.images, base64String] }));
-      };
-      reader.readAsDataURL(file);
-    });
+        setImagePreviews(prev => [...prev, compressedBase64]);
+        setFormData(prev => ({ ...prev, images: [...prev.images, compressedBase64] }));
+      } catch (err) {
+        console.error('Error processing image:', err);
+        alert(`Error processing ${file.name}. Please try again.`);
+      }
+    }
   };
 
   const removeImage = (index) => {
@@ -100,7 +182,9 @@ function AddCarModal({ isOpen, onClose, onSave, carToEdit, ownerName }) {
     }
   };
 
-  const handleSubmit = (e) => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!formData.name || !formData.brand || !formData.pricePerDay || !formData.city) {
@@ -110,17 +194,28 @@ function AddCarModal({ isOpen, onClose, onSave, carToEdit, ownerName }) {
 
     const carData = {
       ...formData,
-      id: carToEdit ? carToEdit.id : Date.now(),
+      id: carToEdit ? carToEdit.id : null, // Let API generate ID for new cars
       owner: ownerName,
       availability: carToEdit?.availability || "available", // Keep existing availability or default to available
-      pricePerDay: Number(formData.pricePerDay),
+      pricePerDay: parseFloat(formData.pricePerDay) || 0,
       seats: Number(formData.seats) || 5,
       latitude: formData.latitude ? Number(formData.latitude) : undefined,
-      longitude: formData.longitude ? Number(formData.longitude) : undefined
+      longitude: formData.longitude ? Number(formData.longitude) : undefined,
+      mainImage: formData.mainImage,
+      images: formData.images || []
     };
 
-    onSave(carData);
-    onClose();
+    try {
+      setIsSaving(true);
+      await onSave(carData);
+      // Only close modal on success - onSave handles error messages
+      onClose();
+    } catch (error) {
+      // Error already handled in onSave, just keep modal open
+      console.error('Error saving car:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -192,10 +287,15 @@ function AddCarModal({ isOpen, onClose, onSave, carToEdit, ownerName }) {
                 <input
                   type="number"
                   value={formData.pricePerDay}
-                  onChange={(e) => setFormData(prev => ({ ...prev, pricePerDay: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Preserve the exact value entered by the user
+                    setFormData(prev => ({ ...prev, pricePerDay: value }));
+                  }}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   required
                   min="0"
+                  step="0.01"
                 />
               </div>
 
@@ -325,9 +425,10 @@ function AddCarModal({ isOpen, onClose, onSave, carToEdit, ownerName }) {
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors font-semibold"
+                disabled={isSaving}
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {carToEdit ? "Update Car" : "Add Car"}
+                {isSaving ? "Saving..." : (carToEdit ? "Update Car" : "Add Car")}
               </button>
             </div>
           </form>

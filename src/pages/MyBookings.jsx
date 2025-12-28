@@ -22,6 +22,12 @@ const statusConfig = {
     label: "Upcoming",
     badgeColor: "bg-blue-500",
   },
+  pending: {
+    icon: Timer,
+    color: "bg-yellow-50 text-yellow-700",
+    label: "Pending",
+    badgeColor: "bg-yellow-500",
+  },
   completed: {
     icon: CheckCircle2,
     color: "bg-gray-100 text-gray-700",
@@ -154,7 +160,7 @@ const BookingCard = ({ booking, onCancel, onViewDetails }) => {
             <span>View details</span>
           </motion.button>
 
-          {(isActive || isUpcoming) && (
+          {(isActive || isUpcoming) && booking.status !== 'pending' && (
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -164,6 +170,11 @@ const BookingCard = ({ booking, onCancel, onViewDetails }) => {
               <Trash2 className="w-4 h-4" />
               <span>Cancel</span>
             </motion.button>
+          )}
+          {booking.status === 'pending' && (
+            <div className="py-2 px-3 bg-yellow-50 text-yellow-700 rounded-md font-medium text-sm text-center">
+              Waiting for approval
+            </div>
           )}
         </div>
       </div>
@@ -480,21 +491,93 @@ export default function MyBookings({ isEmbedded = false }) {
     navigate("/catalogue");
   };
 
-  // Load bookings from localStorage
+  // Load bookings from API
   useEffect(() => {
-    const currentUser = localStorage.getItem("carrent_current_user");
-    if (currentUser) {
-      try {
-        const user = JSON.parse(currentUser);
-        const bookingsKey = `carrent_bookings_${user.id}`;
-        const savedBookings = localStorage.getItem(bookingsKey);
-        if (savedBookings) {
-          setBookings(JSON.parse(savedBookings));
+    const loadBookings = async () => {
+      const currentUser = localStorage.getItem("carrent_current_user");
+      if (currentUser) {
+        try {
+          const user = JSON.parse(currentUser);
+          const { reservationAPI, carAPI } = await import('../services/api');
+          
+          // Get reservations from API
+          const response = await reservationAPI.getReservationsByUser(user.id);
+          const reservations = response.data || [];
+          
+          // Map reservations to booking format expected by frontend
+          const mappedBookings = await Promise.all(reservations.map(async (reservation) => {
+            // Fetch car details
+            let carData = null;
+            try {
+              const carResponse = await carAPI.getCarById(reservation.carId);
+              carData = carResponse.data;
+            } catch (err) {
+              console.error('Error loading car:', err);
+            }
+            
+            // Determine status based on dates and reservation status
+            let status = reservation.status || 'pending';
+            
+            // If pending or cancelled, keep the status as is
+            if (status === 'pending' || status === 'cancelled') {
+              // Keep pending/cancelled status regardless of dates
+            } else {
+              // For confirmed reservations, determine status based on dates
+              const today = new Date();
+              today.setHours(0, 0, 0, 0); // Reset time to start of day
+              
+              const startDate = new Date(reservation.startDate);
+              startDate.setHours(0, 0, 0, 0);
+              
+              const endDate = new Date(reservation.endDate);
+              endDate.setHours(0, 0, 0, 0);
+              
+              if (endDate < today) {
+                // Past reservation
+                status = 'completed';
+              } else if (startDate > today) {
+                // Future reservation
+                status = 'upcoming';
+              } else {
+                // Current reservation (today is between start and end)
+                status = 'active';
+              }
+            }
+            
+            // Map to frontend format
+            return {
+              id: reservation.id,
+              car: carData ? {
+                id: carData.id,
+                name: carData.name,
+                image: carData.mainImageUrl || '',
+                brand: carData.brand,
+                seats: carData.seats,
+                fuel: carData.fuelType,
+                gearbox: carData.gearbox,
+              } : null,
+              reservation: {
+                startDate: reservation.startDate,
+                endDate: reservation.endDate,
+                reference: `RES-${reservation.id}`,
+                createdAt: reservation.createdAt || new Date().toISOString(),
+                insurance: reservation.insuranceType,
+                extras: reservation.extras || [],
+                paymentMethod: 'cash' // Default, not stored in DB
+              },
+              status: status,
+              price: reservation.totalPrice || 0
+            };
+          }));
+          
+          setBookings(mappedBookings);
+        } catch (err) {
+          console.error("Error loading bookings:", err);
+          setBookings([]);
         }
-      } catch (err) {
-        console.error("Error loading bookings:", err);
       }
-    }
+    };
+    loadBookings();
   }, []);
 
   const filteredBookings = filter === "all" 
@@ -506,21 +589,19 @@ export default function MyBookings({ isEmbedded = false }) {
     setShowCancelModal(true);
   };
 
-  const handleCancelConfirm = (booking) => {
-    // Update booking status to cancelled
-    const currentUser = localStorage.getItem("carrent_current_user");
-    if (currentUser) {
-      try {
-        const user = JSON.parse(currentUser);
-        const bookingsKey = `carrent_bookings_${user.id}`;
-        const updatedBookings = bookings.map(b => 
-          b.id === booking.id ? { ...b, status: 'cancelled' } : b
-        );
-        setBookings(updatedBookings);
-        localStorage.setItem(bookingsKey, JSON.stringify(updatedBookings));
-      } catch (err) {
-        console.error("Error cancelling booking:", err);
-      }
+  const handleCancelConfirm = async (booking) => {
+    try {
+      const { reservationAPI } = await import('../services/api');
+      await reservationAPI.cancelReservation(booking.id);
+      
+      // Update local state
+      const updatedBookings = bookings.map(b => 
+        b.id === booking.id ? { ...b, status: 'cancelled' } : b
+      );
+      setBookings(updatedBookings);
+    } catch (err) {
+      console.error("Error cancelling booking:", err);
+      alert('Error cancelling reservation. Please try again.');
     }
   };
 
@@ -533,6 +614,7 @@ export default function MyBookings({ isEmbedded = false }) {
     total: bookings.length,
     active: bookings.filter(b => b.status === 'active').length,
     upcoming: bookings.filter(b => b.status === 'upcoming').length,
+    pending: bookings.filter(b => b.status === 'pending').length,
     completed: bookings.filter(b => b.status === 'completed').length,
     cancelled: bookings.filter(b => b.status === 'cancelled').length,
     totalSpent: bookings.reduce((sum, b) => sum + (b.price || 0), 0)
@@ -550,6 +632,7 @@ export default function MyBookings({ isEmbedded = false }) {
         >
             {[
               { id: "all", label: "All", count: stats.total },
+              { id: "pending", label: "Pending", count: stats.pending },
               { id: "active", label: "Active", count: stats.active },
               { id: "upcoming", label: "Upcoming", count: stats.upcoming },
               { id: "completed", label: "Completed", count: stats.completed },

@@ -25,16 +25,36 @@ export default function CarDetailsPage() {
 
   // Load car data
   useEffect(() => {
-    // Get cars from localStorage or API
-    const cars = JSON.parse(localStorage.getItem("carrent_cars") || "[]");
-    const foundCar = cars.find(c => c.id === carId || c.id?.toString() === carId);
-    
-    if (foundCar) {
-      setCar(foundCar);
-    } else {
-      toast.error("Car not found");
-      navigate("/catalogue");
-    }
+    const loadCar = async () => {
+      try {
+        const { carAPI } = await import('../services/api');
+        const response = await carAPI.getCarById(carId);
+        // Map API response to frontend format
+        const apiCar = response.data;
+        const mappedCar = {
+          id: apiCar.id,
+          name: apiCar.name,
+          brand: apiCar.brand,
+          pricePerDay: typeof apiCar.pricePerDay === 'number' ? apiCar.pricePerDay : parseFloat(apiCar.pricePerDay) || 0,
+          city: apiCar.city,
+          availability: apiCar.availability,
+          owner: apiCar.ownerName,
+          mainImage: apiCar.mainImageUrl || '',
+          images: apiCar.imagesUrl || [],
+          seats: apiCar.seats,
+          fuel: apiCar.fuelType,
+          gearbox: apiCar.gearbox,
+          latitude: apiCar.latitude,
+          longitude: apiCar.longitude
+        };
+        setCar(mappedCar);
+      } catch (error) {
+        console.error('Error loading car:', error);
+        toast.error("Car not found");
+        navigate("/catalogue");
+      }
+    };
+    loadCar();
   }, [carId, navigate]);
 
   if (!car) {
@@ -53,7 +73,8 @@ export default function CarDetailsPage() {
     : car?.images && car.images.length > 0 ? car.images : [];
   
   const activeImage = images[activeIndex] || car?.mainImage;
-  const isAvailable = car.availability === "available" || car.available === true || car.availability === true;
+  // Always allow booking - calendar will block specific dates if needed
+  const isAvailable = true;
 
   const nextImage = useCallback(() => {
     setActiveIndex((prev) => (prev + 1) % images.length);

@@ -22,6 +22,14 @@ export default defineConfig({
   },
   // Optimisation du serveur de développement
   server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
     hmr: {
       overlay: false, // Désactiver l'overlay d'erreur pour améliorer les performances
     },

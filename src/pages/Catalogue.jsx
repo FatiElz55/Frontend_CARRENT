@@ -1,7 +1,7 @@
 // src/pages/Catalogue.jsx
-import React, { useState, useMemo, lazy, Suspense, useCallback } from "react";
+import React, { useState, useMemo, lazy, Suspense, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CARS } from "../data/mockData";
+import { carAPI } from "../services/api";
 import CarCard from "../components/catalogue/CarCard";
 import FiltersBar from "../components/catalogue/FiltersBar";
 import { distanceInKm } from "../utils/geo";
@@ -11,7 +11,42 @@ import { Search, Navigation } from "lucide-react";
 const DetailsModal = lazy(() => import("../components/catalogue/DetailsModal"));
 
 export default function Catalogue({ isEmbedded = false, onCarSelect }) {
-  const [cars] = useState(CARS);
+  const [cars, setCars] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load cars from API
+  useEffect(() => {
+    const loadCars = async () => {
+      try {
+        setLoading(true);
+        const response = await carAPI.getAllCars();
+        // Map API response to frontend format
+        const mappedCars = (response.data || []).map(car => ({
+          id: car.id,
+          name: car.name,
+          brand: car.brand,
+          pricePerDay: typeof car.pricePerDay === 'number' ? car.pricePerDay : parseFloat(car.pricePerDay) || 0,
+          city: car.city,
+          availability: car.availability,
+          owner: car.ownerName,
+          mainImage: car.mainImageUrl || '',
+          images: car.imagesUrl || [],
+          seats: car.seats,
+          fuel: car.fuelType,
+          gearbox: car.gearbox,
+          latitude: car.latitude,
+          longitude: car.longitude
+        }));
+        setCars(mappedCars);
+      } catch (error) {
+        console.error('Error loading cars:', error);
+        setCars([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadCars();
+  }, []);
   const [filter, setFilter] = useState({
     availability: "all", // "all", "available", "reserved"
     location: "all", // "all", "nearest", or city name
@@ -148,8 +183,18 @@ export default function Catalogue({ isEmbedded = false, onCarSelect }) {
           </div>
         </motion.div>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="text-center py-16">
+            <div className="inline-flex items-center justify-center w-24 h-24 bg-gray-200 rounded-full mb-4">
+              <Search className="w-12 h-12 text-gray-400 animate-pulse" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-700 mb-2">Loading cars...</h3>
+          </div>
+        )}
+
         {/* Cars Grid */}
-        {filtered.length > 0 ? (
+        {!loading && filtered.length > 0 ? (
           <motion.div
             variants={containerVariants}
             initial="hidden"

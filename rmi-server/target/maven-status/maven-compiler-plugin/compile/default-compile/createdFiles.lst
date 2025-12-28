@@ -1,0 +1,12 @@
+com\distributed\rmi\util\DatabaseConnection.class
+com\distributed\rmi\model\Reservation.class
+com\distributed\rmi\dao\ReservationDAO$1.class
+com\distributed\rmi\dao\CarDAO$1.class
+com\distributed\rmi\dao\ReservationDAO.class
+com\distributed\rmi\model\User.class
+com\distributed\rmi\service\CarRentalServiceImpl.class
+com\distributed\rmi\server\RMIServer.class
+com\distributed\rmi\dao\UserDAO.class
+com\distributed\rmi\service\CarRentalService.class
+com\distributed\rmi\model\Car.class
+com\distributed\rmi\dao\CarDAO.class

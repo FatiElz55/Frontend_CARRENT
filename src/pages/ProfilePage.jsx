@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   User, Mail, Phone, MapPin, Calendar, Edit2, Save, X, Camera, 
@@ -12,36 +12,95 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("personal");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [bookingsCount, setBookingsCount] = useState(0);
   const fileInputRef = useRef(null);
   
-  // Load user data from localStorage
+  // Load current user from localStorage
   const currentUser = JSON.parse(localStorage.getItem("carrent_current_user") || "{}");
-  const users = JSON.parse(localStorage.getItem("carrent_users") || "[]");
-  const userData = users.find(u => u.id === currentUser.id) || {};
-  
-  // Load bookings count
-  const bookingsCount = (() => {
-    try {
-      if (currentUser?.id) {
-        const bookingsKey = `carrent_bookings_${currentUser.id}`;
-        const bookings = JSON.parse(localStorage.getItem(bookingsKey) || "[]");
-        return bookings.length;
-      }
-    } catch (err) {
-      return 0;
-    }
-    return 0;
-  })();
   
   const [profileData, setProfileData] = useState({
-    name: userData.name || "",
-    email: userData.email || "",
-    phone: userData.phone || "",
-    address: userData.address || "",
-    profilePicture: userData.profilePicture || null,
-    drivingCard: userData.drivingCard || null,
-    nationalCard: userData.nationalCard || null,
+    name: "",
+    email: "",
+    phone: "",
+    phoneCountryCode: "",
+    address: "",
+    profilePicture: null,
+    drivingCard: null,
+    nationalCard: null,
   });
+
+  // Load user data from API
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!currentUser?.id) {
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        setLoading(true);
+        const { userAPI, reservationAPI } = await import('../services/api');
+        
+        // Load user profile
+        // Ensure user.id is a number
+        const userId = typeof currentUser.id === 'string' ? parseInt(currentUser.id) : currentUser.id;
+        if (!userId || isNaN(userId)) {
+          throw new Error('Invalid user ID: ' + currentUser.id);
+        }
+        
+        const userResponse = await userAPI.getUserById(userId);
+        const user = userResponse.data || userResponse; // Handle both axios response and direct data
+        
+        setProfileData({
+          name: user.fullName || user.name || "",
+          email: user.email || "",
+          phone: user.phoneNumber || "",
+          phoneCountryCode: user.phoneCountryCode || "",
+          address: user.address || "",
+          profilePicture: user.profilePictureUrl || null,
+          drivingCard: user.drivingCardUrl || null,
+          nationalCard: user.nationalCardUrl || null,
+        });
+        
+        // Load bookings count
+        try {
+          const bookingsResponse = await reservationAPI.getReservationsByUser(userId);
+          const bookings = bookingsResponse.data || bookingsResponse || [];
+          setBookingsCount(Array.isArray(bookings) ? bookings.length : 0);
+        } catch (err) {
+          console.error('Error loading bookings count:', err);
+          setBookingsCount(0);
+        }
+        } catch (err) {
+          console.error('Error loading user data:', err);
+          const errorMessage = err.response?.data?.message || err.message || 'Failed to load profile data';
+          toast.error(`Error: ${errorMessage}. Please check if the backend server is running.`);
+          // Try to use localStorage data as fallback
+          try {
+            const localUser = JSON.parse(localStorage.getItem("carrent_current_user") || "{}");
+            if (localUser && localUser.id) {
+              setProfileData({
+                name: localUser.name || "",
+                email: localUser.email || "",
+                phone: "",
+                phoneCountryCode: "",
+                address: "",
+                profilePicture: localUser.profilePicture || null,
+                drivingCard: null,
+                nationalCard: null,
+              });
+            }
+          } catch (fallbackErr) {
+            console.error('Error loading fallback data:', fallbackErr);
+          }
+        } finally {
+          setLoading(false);
+        }
+    };
+    
+    loadUserData();
+  }, [currentUser?.id]);
 
   const [documents, setDocuments] = useState([
     { id: 1, name: "Driver's License", type: "license", file: "license.pdf", uploaded: "2024-01-15", status: "approved" },
@@ -62,33 +121,46 @@ export default function ProfilePage() {
     twoFactorEnabled: false
   });
 
-  const handleSave = () => {
-    // Update user data in localStorage
-    const updatedUsers = users.map(u => {
-      if (u.id === currentUser.id) {
-        return {
-          ...u,
-          name: profileData.name.trim(),
-          email: profileData.email,
-          phone: profileData.phone,
-          address: profileData.address,
-          profilePicture: profileData.profilePicture,
-        };
-      }
-      return u;
-    });
-    localStorage.setItem("carrent_users", JSON.stringify(updatedUsers));
+  const handleSave = async () => {
+    if (!currentUser?.id) {
+      toast.error("User not found");
+      return;
+    }
     
-    // Update current user session
-    const updatedCurrentUser = {
-      ...currentUser,
-      name: profileData.name.trim(),
-      email: profileData.email,
-    };
-    localStorage.setItem("carrent_current_user", JSON.stringify(updatedCurrentUser));
-    
-    setIsEditing(false);
-    toast.success("Profile updated successfully!");
+    try {
+      const { userAPI } = await import('../services/api');
+      
+      // Update user via API (don't send password for profile updates)
+      const updateData = {
+        fullName: profileData.name.trim(),
+        email: profileData.email,
+        phoneNumber: profileData.phone,
+        phoneCountryCode: profileData.phoneCountryCode || "+1",
+        address: profileData.address,
+        profilePictureUrl: profileData.profilePicture,
+        drivingCardUrl: profileData.drivingCard,
+        nationalCardUrl: profileData.nationalCard,
+        // Password is handled separately via changePassword endpoint
+      };
+      
+      const response = await userAPI.updateUser(currentUser.id, updateData);
+      const updatedUser = response.data;
+      
+      // Update current user session in localStorage
+      const updatedCurrentUser = {
+        ...currentUser,
+        name: updatedUser.fullName || updatedUser.name,
+        email: updatedUser.email,
+        profilePicture: updatedUser.profilePictureUrl || null,
+      };
+      localStorage.setItem("carrent_current_user", JSON.stringify(updatedCurrentUser));
+      
+      setIsEditing(false);
+      toast.success("Profile updated successfully!");
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      toast.error(err.response?.data?.message || "Failed to update profile");
+    }
   };
 
   const handleCancel = () => {
@@ -110,28 +182,93 @@ export default function ProfilePage() {
     }));
   };
 
-  const handleAvatarUpload = (e) => {
+  const handleAvatarUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB
-        toast.error("Image must be less than 5MB");
-        return;
+    if (!file) return;
+    
+    if (file.size > 5 * 1024 * 1024) { // 5MB
+      toast.error("Image must be less than 5MB");
+      return;
+    }
+    
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please select an image");
+      return;
+    }
+
+    // Compress image before uploading
+    const compressImage = async (file) => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            const maxSize = 600;
+            
+            if (width > height) {
+              if (width > maxSize) {
+                height = (height * maxSize) / width;
+                width = maxSize;
+              }
+            } else {
+              if (height > maxSize) {
+                width = (width * maxSize) / height;
+                height = maxSize;
+              }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            let quality = 0.6;
+            let compressed = canvas.toDataURL('image/jpeg', quality);
+            
+            // Ensure image is under 200KB
+            while (compressed.length > 200 * 1024 && quality > 0.1) {
+              quality -= 0.1;
+              compressed = canvas.toDataURL('image/jpeg', quality);
+            }
+            
+            resolve(compressed);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    };
+
+    try {
+      const compressedImage = await compressImage(file);
+      
+      setProfileData(prev => ({
+        ...prev,
+        profilePicture: compressedImage
+      }));
+      
+      // Auto-save profile picture
+      if (currentUser?.id) {
+        const { userAPI } = await import('../services/api');
+        await userAPI.updateUser(currentUser.id, {
+          profilePictureUrl: compressedImage
+        });
+        
+        // Update localStorage
+        const updatedCurrentUser = {
+          ...currentUser,
+          profilePicture: compressedImage
+        };
+        localStorage.setItem("carrent_current_user", JSON.stringify(updatedCurrentUser));
       }
       
-      if (!file.type.startsWith('image/')) {
-        toast.error("Please select an image");
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfileData(prev => ({
-          ...prev,
-          profilePicture: reader.result
-        }));
-        toast.success("Profile picture updated!");
-      };
-      reader.readAsDataURL(file);
+      toast.success("Profile picture updated!");
+    } catch (err) {
+      console.error('Error uploading avatar:', err);
+      toast.error("Failed to update profile picture");
     }
   };
 
@@ -176,7 +313,12 @@ export default function ProfilePage() {
     toast.success("Payment method deleted");
   };
 
-  const handleUpdateSecurity = () => {
+  const handleUpdateSecurity = async () => {
+    if (!currentUser?.id) {
+      toast.error("User not found");
+      return;
+    }
+    
     if (securityData.newPassword !== securityData.confirmPassword) {
       toast.error("Passwords don't match");
       return;
@@ -187,14 +329,26 @@ export default function ProfilePage() {
       return;
     }
     
-    setSecurityData({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-      twoFactorEnabled: securityData.twoFactorEnabled
-    });
-    
-    toast.success("Password updated successfully!");
+    try {
+      const { userAPI } = await import('../services/api');
+      await userAPI.changePassword(
+        currentUser.id,
+        securityData.currentPassword,
+        securityData.newPassword
+      );
+      
+      setSecurityData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+        twoFactorEnabled: securityData.twoFactorEnabled
+      });
+      
+      toast.success("Password updated successfully!");
+    } catch (err) {
+      console.error('Error changing password:', err);
+      toast.error(err.response?.data?.message || "Failed to change password");
+    }
   };
 
   const tabs = [
@@ -222,6 +376,17 @@ export default function ProfilePage() {
       default: return "💳";
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:bg-[#1a0f24] py-8 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-gray-300 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-400">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:bg-[#1a0f24] py-8 px-4 sm:px-6 lg:px-8">

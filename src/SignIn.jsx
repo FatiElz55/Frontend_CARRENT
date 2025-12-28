@@ -61,42 +61,18 @@ function SignIn({ onSignedIn, onGoToSignUp }) {
     try {
       setLoading(true);
 
-      // Get users from localStorage
-      const users = JSON.parse(localStorage.getItem("carrent_users") || "[]");
-      const user = users.find(
-        (u) => u.email === email.toLowerCase() && u.password === password
-      );
-
-      if (!user) {
-        setError("Invalid email or password. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      // Initialize bookings array if it doesn't exist for this user
-      if (!user.bookings) {
-        user.bookings = [];
-        // Update user in users array
-        const userIndex = users.findIndex(u => u.id === user.id);
-        if (userIndex !== -1) {
-          users[userIndex] = user;
-          localStorage.setItem("carrent_users", JSON.stringify(users));
-        }
-      }
-      
-      // Initialize empty bookings in localStorage if not exists (for first sign in)
-      const bookingsKey = `carrent_bookings_${user.id}`;
-      if (!localStorage.getItem(bookingsKey)) {
-        localStorage.setItem(bookingsKey, JSON.stringify([]));
-      }
+      // Authenticate via API
+      const { userAPI } = await import('./services/api');
+      const response = await userAPI.authenticate(email, password);
+      const user = response.data;
 
       // Store current session
       const userData = {
         id: user.id,
-        name: user.name,
+        name: user.fullName || user.name,
         email: user.email,
         role: user.role,
-        profilePicture: user.profilePicture || null,
+        profilePicture: user.profilePictureUrl || null,
       };
       localStorage.setItem("carrent_current_user", JSON.stringify(userData));
 
@@ -111,18 +87,12 @@ function SignIn({ onSignedIn, onGoToSignUp }) {
         onSignedIn(userData);
       }
     } catch (err) {
-      setError("Invalid email or password. Please try again.");
+      console.error('Login error:', err);
+      setError(err.response?.data?.message || "Invalid email or password. Please try again.");
     } finally {
       setLoading(false);
     }
   };
-  
-  // Ensure we're on the sign-in page, not owner page
-  React.useEffect(() => {
-    if (window.location.pathname === '/owner') {
-      window.location.href = '/signin';
-    }
-  }, []);
 
   return (
     <div className="signin-page" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '32px 24px 40px', background: 'radial-gradient(circle at top left, rgba(129, 140, 248, 0.25), transparent 55%), radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.22), transparent 55%), #f5f3ff' }}>

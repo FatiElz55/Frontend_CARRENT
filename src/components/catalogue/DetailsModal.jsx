@@ -31,7 +31,8 @@ export default function DetailsModal({ car, onClose, isEmbedded = false, onReser
 
   if (!car) return null;
 
-  const isAvailable = car.availability === "available" || car.available === true || car.availability === true;
+  // Always allow booking - calendar will block specific dates if needed
+  const isAvailable = true;
 
   const nextImage = useCallback(() => {
     setActiveIndex((prev) => (prev + 1) % images.length);

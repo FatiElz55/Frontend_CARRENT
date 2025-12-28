@@ -11,6 +11,8 @@ import {
 import { PhoneInput } from "react-international-phone";
 import "react-international-phone/style.css";
 import { parsePhoneNumberFromString } from "libphonenumber-js/min";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import { CARS } from "../data/mockData";
 import toast from "react-hot-toast";
 
@@ -19,7 +21,7 @@ const ReservationSummary = ({ car, formData, days, totalPrice, step }) => {
   const insuranceCost = { basic: 50, premium: 100, full: 200 }[formData.insurance] || 0;
   const extrasCost = { gps: 25, wifi: 40, babySeat: 30, delivery: 150 };
   const extrasTotal = formData.extras.reduce((sum, extra) => sum + (extrasCost[extra] || 0), 0);
-  const subTotal = days * car.pricePerDay;
+  const subTotal = days * (typeof car.pricePerDay === 'number' ? car.pricePerDay : parseFloat(car.pricePerDay) || 0);
 
   const extrasOptions = {
     gps: { label: "Premium GPS", price: 25 },
@@ -64,7 +66,7 @@ const ReservationSummary = ({ car, formData, days, totalPrice, step }) => {
               {/* Rental */}
               <div className="flex justify-between items-center">
                 <div>
-                   <p className="text-sm font-medium text-gray-900 dark:text-white">{car.pricePerDay} MAD/day</p>
+                   <p className="text-sm font-medium text-gray-900 dark:text-white">{typeof car.pricePerDay === 'number' ? car.pricePerDay : parseFloat(car.pricePerDay) || 0} MAD/day</p>
                    <p className="text-xs text-gray-500 dark:text-gray-400">{days || 0} day{days !== 1 ? 's' : ''}</p>
                 </div>
               </div>
@@ -180,7 +182,7 @@ const StepIndicator = ({ steps, currentStep, onStepClick, isSubmitting }) => {
 };
 
 // Component for individual steps
-const StepContent = ({ step, formData, onFormChange, onToggleExtra, days, subTotal }) => {
+const StepContent = ({ step, formData, onFormChange, onToggleExtra, days, subTotal, blockedDates, setFormData, blockedDateWarning, setBlockedDateWarning }) => {
   const extrasOptions = [
     { id: "gps", label: "Premium GPS", price: 25, icon: Navigation },
     { id: "wifi", label: "Mobile WiFi", price: 40, icon: Wifi },
@@ -215,15 +217,64 @@ const StepContent = ({ step, formData, onFormChange, onToggleExtra, days, subTot
                 <Calendar className="w-4 h-4 text-purple-600 dark:text-gray-400" />
                 <span>Start Date</span>
               </label>
-              <input
-                type="date"
-                name="startDate"
-                value={formData.startDate}
-                onChange={onFormChange}
-                min={new Date().toISOString().split('T')[0]}
+              <DatePicker
+                selected={formData.startDate ? new Date(formData.startDate + 'T00:00:00') : null}
+                onChange={(date) => {
+                  if (!date) {
+                    setFormData(prev => ({ ...prev, startDate: "" }));
+                    setBlockedDateWarning('');
+                    return;
+                  }
+                  
+                  // Use local date components to avoid timezone shift
+                  const year = date.getFullYear();
+                  const month = String(date.getMonth() + 1).padStart(2, '0');
+                  const day = String(date.getDate()).padStart(2, '0');
+                  const selectedDate = `${year}-${month}-${day}`;
+                  
+                  console.log('DatePicker date object:', date);
+                  console.log('Start date selected:', selectedDate);
+                  console.log('Blocked dates:', blockedDates);
+                  console.log('Is blocked?', blockedDates.includes(selectedDate));
+                  
+                  // Check if selected date is blocked (shouldn't happen with excludeDates, but double-check)
+                  if (blockedDates.includes(selectedDate)) {
+                    console.warn(`Date ${selectedDate} is blocked!`);
+                    toast.error("This date is already booked. Please choose another date.");
+                    setBlockedDateWarning("⚠️ This date is already booked. Please select a different date.");
+                    setFormData(prev => ({ ...prev, startDate: "" }));
+                    return;
+                  }
+                  
+                  // Clear warning if date is valid
+                  setBlockedDateWarning('');
+                  setFormData(prev => ({ ...prev, startDate: selectedDate }));
+                  
+                  // Clear end date if it's before the new start date
+                  if (formData.endDate && formData.endDate < selectedDate) {
+                    setFormData(prev => ({ ...prev, endDate: "" }));
+                  }
+                }}
+                excludeDates={blockedDates.map(dateStr => {
+                  const [year, month, day] = dateStr.split('-').map(Number);
+                  return new Date(year, month - 1, day);
+                })}
+                minDate={new Date()}
+                dateFormat="MM/dd/yyyy"
+                placeholderText="mm/dd/yyyy"
                 required
-                className="w-full px-4 py-3 border border-gray-300 dark:border-purple-800/50 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:border-indigo-500 dark:focus:border-purple-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-purple-800/50 outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:hover:opacity-100 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:saturate-100 [&::-webkit-calendar-picker-indicator]:invert-[0.4] [&::-webkit-calendar-picker-indicator]:sepia-[1] [&::-webkit-calendar-picker-indicator]:hue-rotate-[250deg] dark:[&::-webkit-calendar-picker-indicator]:invert"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-purple-800/50 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:border-indigo-500 dark:focus:border-purple-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-purple-800/50 outline-none transition-colors"
+                wrapperClassName="w-full"
               />
+              {blockedDateWarning && blockedDateWarning.includes('Start') ? (
+                <p className="text-xs text-red-500 dark:text-red-400 mt-1 font-medium">
+                  {blockedDateWarning}
+                </p>
+              ) : blockedDates.length > 0 && !formData.startDate ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Note: Some dates are already booked and cannot be selected
+                </p>
+              ) : null}
             </div>
             
             <div>
@@ -231,15 +282,79 @@ const StepContent = ({ step, formData, onFormChange, onToggleExtra, days, subTot
                 <Clock className="w-4 h-4 text-purple-600 dark:text-gray-400" />
                 <span>End Date</span>
               </label>
-              <input
-                type="date"
-                name="endDate"
-                value={formData.endDate}
-                onChange={onFormChange}
-                min={formData.startDate || new Date().toISOString().split('T')[0]}
+              <DatePicker
+                selected={formData.endDate ? new Date(formData.endDate + 'T00:00:00') : null}
+                onChange={(date) => {
+                  if (!date) {
+                    setFormData(prev => ({ ...prev, endDate: "" }));
+                    setBlockedDateWarning('');
+                    return;
+                  }
+                  
+                  if (!formData.startDate) {
+                    toast.error("Please select start date first");
+                    return;
+                  }
+                  
+                  // Use local date components to avoid timezone shift
+                  const year = date.getFullYear();
+                  const month = String(date.getMonth() + 1).padStart(2, '0');
+                  const day = String(date.getDate()).padStart(2, '0');
+                  const selectedEndDate = `${year}-${month}-${day}`;
+                  
+                  // Check if selected date is blocked (shouldn't happen with excludeDates, but double-check)
+                  if (blockedDates.includes(selectedEndDate)) {
+                    toast.error("This date is already booked. Please choose another date.");
+                    setBlockedDateWarning("⚠️ End date is already booked. Please select a different date.");
+                    setFormData(prev => ({ ...prev, endDate: "" }));
+                    return;
+                  }
+                  
+                  const start = new Date(formData.startDate);
+                  const end = new Date(selectedEndDate);
+                  
+                  // Reset times to avoid timezone issues
+                  start.setHours(0, 0, 0, 0);
+                  end.setHours(0, 0, 0, 0);
+                  
+                  // Check all dates in the selected range
+                  const selectedDates = new Set();
+                  const currentDate = new Date(start);
+                  while (currentDate <= end) {
+                    const dateString = currentDate.toISOString().split('T')[0];
+                    selectedDates.add(dateString);
+                    currentDate.setDate(currentDate.getDate() + 1);
+                  }
+                  
+                  // Check for blocked dates in range
+                  const blockedInRange = blockedDates.filter(blocked => selectedDates.has(blocked));
+                  if (blockedInRange.length > 0) {
+                    toast.error(`The following dates are already booked: ${blockedInRange.join(', ')}. Please choose different dates.`);
+                    setBlockedDateWarning(`⚠️ Dates ${blockedInRange.join(', ')} are already booked. Please select different dates.`);
+                    setFormData(prev => ({ ...prev, endDate: "" }));
+                    return;
+                  }
+                  
+                  // Clear warning if range is valid
+                  setBlockedDateWarning('');
+                  setFormData(prev => ({ ...prev, endDate: selectedEndDate }));
+                }}
+                excludeDates={blockedDates.map(dateStr => {
+                  const [year, month, day] = dateStr.split('-').map(Number);
+                  return new Date(year, month - 1, day);
+                })}
+                minDate={formData.startDate ? new Date(formData.startDate) : new Date()}
+                dateFormat="MM/dd/yyyy"
+                placeholderText="mm/dd/yyyy"
                 required
-                className="w-full px-4 py-3 border border-gray-300 dark:border-purple-800/50 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:border-indigo-500 dark:focus:border-purple-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-purple-800/50 outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:hover:opacity-100 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:saturate-100 [&::-webkit-calendar-picker-indicator]:invert-[0.4] [&::-webkit-calendar-picker-indicator]:sepia-[1] [&::-webkit-calendar-picker-indicator]:hue-rotate-[250deg] dark:[&::-webkit-calendar-picker-indicator]:invert"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-purple-800/50 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:border-indigo-500 dark:focus:border-purple-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-purple-800/50 outline-none transition-colors"
+                wrapperClassName="w-full"
               />
+              {blockedDateWarning && (blockedDateWarning.includes('End') || blockedDateWarning.includes('Dates')) && formData.endDate ? (
+                <p className="text-xs text-red-500 dark:text-red-400 mt-1 font-medium">
+                  {blockedDateWarning}
+                </p>
+              ) : null}
             </div>
           </div>
           
@@ -600,6 +715,8 @@ export default function ReservationPage({ isEmbedded = false, carId: propCarId }
   const carId = propCarId || paramCarId; // Use prop if embedded, otherwise use param
   const navigate = useNavigate();
   const [car, setCar] = useState(null);
+  const [blockedDates, setBlockedDates] = useState([]); // Array of date strings that are already booked
+  const [blockedDateWarning, setBlockedDateWarning] = useState(''); // Warning message for blocked dates
   const [formData, setFormData] = useState({
     startDate: "",
     endDate: "",
@@ -618,23 +735,239 @@ export default function ReservationPage({ isEmbedded = false, carId: propCarId }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState(1);
 
+  // Load car data from API and blocked dates
   useEffect(() => {
-    const foundCar = CARS.find(c => c.id === parseInt(carId));
-    if (foundCar) {
-      setCar(foundCar);
-      // Pre-fill only personal information
-      setFormData(prev => ({
-        ...prev,
-        firstName: "Ahmed",
-        lastName: "Benali",
-        email: "ahmed.benali@example.com",
-        phone: "+212612345678"
-      }));
-    } else {
-      toast.error("Vehicle not found");
-      navigate("/");
+    const loadCar = async () => {
+      try {
+        const { carAPI, reservationAPI } = await import('../services/api');
+        const response = await carAPI.getCarById(carId);
+        
+        // Map API response to frontend format
+        const apiCar = response.data;
+        
+        // Check if current user is the owner of this car
+        const currentUser = localStorage.getItem("carrent_current_user");
+        if (currentUser) {
+          try {
+            const user = JSON.parse(currentUser);
+            // Convert both to numbers for comparison
+            const userId = typeof user.id === 'string' ? parseInt(user.id) : user.id;
+            const ownerId = typeof apiCar.ownerId === 'string' ? parseInt(apiCar.ownerId) : apiCar.ownerId;
+            
+            if (userId === ownerId) {
+              toast.error("You cannot book your own car!");
+              if (!isEmbedded) {
+                navigate("/catalogue");
+                return;
+              } else {
+                // If embedded in owner page, prevent further loading
+                return;
+              }
+            }
+          } catch (err) {
+            console.error('Error checking owner:', err);
+          }
+        }
+        
+        const mappedCar = {
+          id: apiCar.id,
+          name: apiCar.name,
+          brand: apiCar.brand,
+          pricePerDay: typeof apiCar.pricePerDay === 'number' ? apiCar.pricePerDay : parseFloat(apiCar.pricePerDay) || 0,
+          city: apiCar.city,
+          availability: apiCar.availability,
+          owner: apiCar.ownerName,
+          ownerId: apiCar.ownerId,
+          mainImage: apiCar.mainImageUrl || '',
+          images: apiCar.imagesUrl || [],
+          seats: apiCar.seats,
+          fuel: apiCar.fuelType,
+          gearbox: apiCar.gearbox,
+          latitude: apiCar.latitude,
+          longitude: apiCar.longitude
+        };
+        
+        setCar(mappedCar);
+        
+        // Load existing reservations to block those dates
+        try {
+          console.log('Fetching reservations for car ID:', carId);
+          const reservationsResponse = await reservationAPI.getReservationsByCar(carId);
+          console.log('API Response:', reservationsResponse);
+          const reservations = reservationsResponse.data || [];
+          
+          // Get all dates that are booked (only confirmed reservations block dates)
+          const bookedDates = new Set();
+          console.log('Total reservations found in database:', reservations.length);
+          console.log('All reservations:', JSON.stringify(reservations, null, 2));
+          
+          if (reservations.length === 0) {
+            console.log('No reservations found for this car - all dates available');
+          }
+          
+          reservations.forEach((reservation, index) => {
+            console.log(`\n=== Processing Reservation ${index + 1}/${reservations.length} ===`);
+            console.log('Reservation ID:', reservation.id);
+            console.log('Reservation Status:', reservation.status, '(type:', typeof reservation.status, ')');
+            console.log('Start Date:', reservation.startDate, '(type:', typeof reservation.startDate, ')');
+            console.log('End Date:', reservation.endDate, '(type:', typeof reservation.endDate, ')');
+            
+            // Only block CONFIRMED reservations - pending ones don't block dates
+            // Explicitly check for 'confirmed' status (not null, not undefined, not empty string)
+            const status = (reservation.status || '').toLowerCase().trim();
+            console.log('Normalized status:', status, '(will block:', status === 'confirmed', ')');
+            
+            if (status === 'confirmed') {
+              // Handle both Date objects and date strings
+              // IMPORTANT: Parse dates in UTC to avoid timezone shifting issues
+              let start, end;
+              
+              if (reservation.startDate instanceof Date) {
+                // If it's already a Date object, use it directly
+                start = new Date(reservation.startDate);
+              } else if (typeof reservation.startDate === 'string') {
+                // Handle ISO strings (with time) and date-only strings (YYYY-MM-DD)
+                if (reservation.startDate.includes('T')) {
+                  // ISO string with time (e.g., "2026-01-06T23:00:00.000Z")
+                  // When Java serializes java.sql.Date, it may shift by timezone
+                  // Parse the timestamp and check the date - if it's late in the day UTC
+                  // but represents the next day, we need to adjust
+                  const dateObj = new Date(reservation.startDate);
+                  let year = dateObj.getUTCFullYear();
+                  let month = dateObj.getUTCMonth();
+                  let day = dateObj.getUTCDate();
+                  let hours = dateObj.getUTCHours();
+                  
+                  // If the UTC timestamp is late in the day (23:00+) but the date in DB
+                  // is the next day, the backend timezone is ahead of UTC
+                  // For now, use the UTC date components as-is since java.sql.Date
+                  // should represent midnight UTC of the stored date
+                  // But if hours >= 20, it might represent the next day
+                  if (hours >= 20) {
+                    // Likely represents next day due to timezone shift
+                    const nextDay = new Date(Date.UTC(year, month, day + 1));
+                    year = nextDay.getUTCFullYear();
+                    month = nextDay.getUTCMonth();
+                    day = nextDay.getUTCDate();
+                  }
+                  
+                  start = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+                  console.log(`  Timestamp "${reservation.startDate}" parsed as UTC date: ${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')} (hours was ${hours})`);
+                } else {
+                  // Date-only string (YYYY-MM-DD): parse directly
+                  const [year, month, day] = reservation.startDate.split('-').map(Number);
+                  start = new Date(Date.UTC(year, month - 1, day)); // month is 0-indexed
+                }
+              } else {
+                start = new Date(reservation.startDate);
+              }
+              
+              if (reservation.endDate instanceof Date) {
+                end = new Date(reservation.endDate);
+              } else if (typeof reservation.endDate === 'string') {
+                if (reservation.endDate.includes('T')) {
+                  // ISO string with time
+                  const dateObj = new Date(reservation.endDate);
+                  let year = dateObj.getUTCFullYear();
+                  let month = dateObj.getUTCMonth();
+                  let day = dateObj.getUTCDate();
+                  let hours = dateObj.getUTCHours();
+                  
+                  // Same adjustment as start date
+                  if (hours >= 20) {
+                    const nextDay = new Date(Date.UTC(year, month, day + 1));
+                    year = nextDay.getUTCFullYear();
+                    month = nextDay.getUTCMonth();
+                    day = nextDay.getUTCDate();
+                  }
+                  
+                  end = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
+                  console.log(`  Timestamp "${reservation.endDate}" parsed as UTC date: ${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')} (hours was ${hours})`);
+                } else {
+                  // Date-only string (YYYY-MM-DD): parse directly
+                  const [year, month, day] = reservation.endDate.split('-').map(Number);
+                  end = new Date(Date.UTC(year, month - 1, day)); // month is 0-indexed
+                }
+              } else {
+                end = new Date(reservation.endDate);
+              }
+              
+              // Use UTC methods to extract date components consistently
+              // This ensures we get the correct date regardless of timezone
+              const datesAdded = [];
+              const currentDate = new Date(start);
+              const endDate = new Date(end);
+              
+              // Extract UTC date components from start and end for logging
+              const startYear = start.getUTCFullYear();
+              const startMonth = String(start.getUTCMonth() + 1).padStart(2, '0');
+              const startDay = String(start.getUTCDate()).padStart(2, '0');
+              const startDateStr = `${startYear}-${startMonth}-${startDay}`;
+              
+              const endYear = end.getUTCFullYear();
+              const endMonth = String(end.getUTCMonth() + 1).padStart(2, '0');
+              const endDay = String(end.getUTCDate()).padStart(2, '0');
+              const endDateStr = `${endYear}-${endMonth}-${endDay}`;
+              
+              console.log(`  Parsed dates - Start: ${startDateStr}, End: ${endDateStr}`);
+              
+              while (currentDate <= endDate) {
+                // Format as YYYY-MM-DD using UTC components to avoid timezone issues
+                const year = currentDate.getUTCFullYear();
+                const month = String(currentDate.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(currentDate.getUTCDate()).padStart(2, '0');
+                const dateString = `${year}-${month}-${day}`;
+                datesAdded.push(dateString);
+                bookedDates.add(dateString);
+                
+                // Move to next day using UTC methods
+                currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+              }
+              
+              console.log(`✓ Added ${datesAdded.length} blocked dates for reservation ${reservation.id}:`, datesAdded);
+              console.log(`  Date range: ${startDateStr} to ${endDateStr}`);
+            } else {
+              console.log(`✗ Skipping reservation ${reservation.id} - status is "${reservation.status || 'null/undefined'}" (not confirmed)`);
+            }
+          });
+          
+          const finalBlockedDates = Array.from(bookedDates).sort();
+          console.log('\n=== FINAL BLOCKED DATES ===');
+          console.log('Total blocked dates:', finalBlockedDates.length);
+          console.log('Blocked dates array:', finalBlockedDates);
+          setBlockedDates(finalBlockedDates);
+        } catch (err) {
+          console.error('Error loading reservations:', err);
+          setBlockedDates([]);
+        }
+        
+        // Pre-fill personal information from localStorage if available
+        if (currentUser) {
+          try {
+            const user = JSON.parse(currentUser);
+            setFormData(prev => ({
+              ...prev,
+              firstName: user.name ? user.name.split(' ')[0] : '',
+              lastName: user.name ? user.name.split(' ').slice(1).join(' ') : '',
+              email: user.email || ''
+            }));
+          } catch (err) {
+            // Use defaults if parsing fails
+          }
+        }
+      } catch (error) {
+        console.error('Error loading car:', error);
+        toast.error("Vehicle not found");
+        if (!isEmbedded) {
+          navigate("/catalogue");
+        }
+      }
+    };
+    
+    if (carId) {
+      loadCar();
     }
-  }, [carId, navigate]);
+  }, [carId, navigate, isEmbedded]);
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
@@ -650,26 +983,70 @@ export default function ReservationPage({ isEmbedded = false, carId: propCarId }
         toast.error("Please choose an insurance option");
         return;
       }
-      
-      // Phone validation when moving to confirmation
-      if (step === 2) {
-        const parsedPhone = parsePhoneNumberFromString(formData.phone || "");
-        if (!parsedPhone || !parsedPhone.isValid()) {
-          toast.error("Please enter a valid phone number");
-          return;
-        }
-        setFormData(prev => ({ ...prev, phone: parsedPhone.formatInternational() }));
-      }
 
+      // Move to next step (no validation needed here for step 3 fields)
       setStep(step + 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     
-    // Final validation before submission
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.insurance) {
-      toast.error("Please fill in all required fields");
+    // Final validation before submission (step 3)
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone) {
+      toast.error("Please fill in all contact information fields");
       return;
+    }
+    
+    // Validate phone number format
+    const parsedPhone = parsePhoneNumberFromString(formData.phone || "");
+    if (!parsedPhone || !parsedPhone.isValid()) {
+      toast.error("Please enter a valid phone number");
+      return;
+    }
+    
+    // Validate insurance was selected
+    if (!formData.insurance) {
+      toast.error("Please choose an insurance option");
+      return;
+    }
+    
+    // Check if user is trying to book their own car
+    const currentUser = localStorage.getItem("carrent_current_user");
+    if (currentUser && car) {
+      try {
+        const user = JSON.parse(currentUser);
+        const userId = typeof user.id === 'string' ? parseInt(user.id) : user.id;
+        const ownerId = typeof car.ownerId === 'string' ? parseInt(car.ownerId) : car.ownerId;
+        
+        if (userId === ownerId) {
+          toast.error("You cannot book your own car!");
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (err) {
+        console.error('Error checking owner:', err);
+      }
+    }
+    
+    // Check if selected dates overlap with blocked dates
+    if (formData.startDate && formData.endDate) {
+      const start = new Date(formData.startDate);
+      const end = new Date(formData.endDate);
+      const selectedDates = new Set();
+      
+      const currentDate = new Date(start);
+      while (currentDate <= end) {
+        const dateString = currentDate.toISOString().split('T')[0];
+        selectedDates.add(dateString);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      // Check for overlap
+      const hasOverlap = blockedDates.some(blockedDate => selectedDates.has(blockedDate));
+      if (hasOverlap) {
+        toast.error("Some selected dates are already booked. Please choose different dates.");
+        setIsSubmitting(false);
+        return;
+      }
     }
     
     // Validate credit card fields if payment method is card
@@ -698,98 +1075,117 @@ export default function ReservationPage({ isEmbedded = false, carId: propCarId }
     
     setIsSubmitting(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Save booking to localStorage
     try {
       const currentUser = localStorage.getItem("carrent_current_user");
-      if (currentUser) {
-        const user = JSON.parse(currentUser);
-        const bookingsKey = `carrent_bookings_${user.id}`;
-        const existingBookings = JSON.parse(localStorage.getItem(bookingsKey) || "[]");
-        
-        // Generate reference number
-        const reference = `RES-${new Date().getFullYear()}-${String(existingBookings.length + 1).padStart(3, '0')}`;
-        
-        // Determine booking status based on dates
-        const today = new Date();
-        const startDate = new Date(formData.startDate);
-        const endDate = new Date(formData.endDate);
-        let status = "upcoming";
-        if (startDate <= today && endDate >= today) {
-          status = "active";
-        } else if (endDate < today) {
-          status = "completed";
-        }
-        
-        // Create booking object
-        const newBooking = {
-          id: existingBookings.length > 0 ? Math.max(...existingBookings.map(b => b.id)) + 1 : 1,
-          car: {
-            id: car.id,
-            name: car.name,
-            image: car.mainImage,
-            brand: car.brand,
-            seats: car.seats,
-            fuel: car.fuel,
-            gearbox: car.type,
-          },
-          reservation: {
-            startDate: formData.startDate,
-            endDate: formData.endDate,
-            reference: reference,
-            createdAt: new Date().toISOString(),
-            insurance: formData.insurance,
-            extras: formData.extras || [],
-            paymentMethod: formData.paymentMethod || "cash"
-          },
-          status: status,
-          price: totalPrice
-        };
-        
-        // Add booking to list
-        existingBookings.push(newBooking);
-        localStorage.setItem(bookingsKey, JSON.stringify(existingBookings));
+      if (!currentUser) {
+        toast.error("Please log in to make a reservation");
+        setIsSubmitting(false);
+        return;
       }
-    } catch (err) {
-      console.error("Error saving booking:", err);
-    }
-    
-    toast.success(
-      <div className="flex items-center gap-3">
-        <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-        <div>
-          <p className="font-semibold">Booking confirmed!</p>
-          <p className="text-sm opacity-90">Confirmation email sent</p>
-        </div>
-      </div>,
-      { duration: 4000 }
-    );
-    
-    // Redirect after success
-    setTimeout(() => {
-      setIsSubmitting(false);
-      if (isEmbedded) {
-        // If embedded, switch to bookings tab in owner page
-        const currentUser = localStorage.getItem("carrent_current_user");
-        if (currentUser) {
-          try {
-            const user = JSON.parse(currentUser);
-            if (user.role === "owner" || user.role === "OWNER") {
-              if (user.id) {
-                localStorage.setItem(`carrent_owner_active_tab_${user.id}`, "bookings");
+
+      const user = JSON.parse(currentUser);
+      
+      // Format phone number before sending
+      const parsedPhone = parsePhoneNumberFromString(formData.phone || "");
+      const formattedPhone = parsedPhone && parsedPhone.isValid() 
+        ? parsedPhone.formatInternational() 
+        : formData.phone;
+
+      // Create reservation via API
+      const { reservationAPI } = await import('../services/api');
+      
+      // Ensure dates are in YYYY-MM-DD format (they should already be from DatePicker)
+      const startDateStr = formData.startDate; // Already in YYYY-MM-DD format
+      const endDateStr = formData.endDate; // Already in YYYY-MM-DD format
+      
+      console.log('Creating reservation with dates:', {
+        startDate: startDateStr,
+        endDate: endDateStr,
+        carId: car.id,
+        userId: user.id,
+        blockedDates: blockedDates
+      });
+      
+      const reservationData = {
+        userId: user.id,
+        carId: car.id,
+        startDate: startDateStr,
+        endDate: endDateStr,
+        days: days,
+        insuranceType: formData.insurance || 'basic',
+        extras: formData.extras || [],
+        totalPrice: totalPrice,
+        status: 'pending'
+      };
+
+      try {
+        console.log('Sending reservation data to API:', JSON.stringify(reservationData, null, 2));
+        await reservationAPI.createReservation(reservationData);
+        
+        toast.success(
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+            <div>
+              <p className="font-semibold">Booking request submitted!</p>
+              <p className="text-sm opacity-90">Waiting for owner approval. You'll be notified once approved.</p>
+            </div>
+          </div>,
+          { duration: 4000 }
+        );
+        
+        // Redirect after success
+        setTimeout(() => {
+          setIsSubmitting(false);
+          if (isEmbedded) {
+            // If embedded, switch to bookings tab in owner page
+            const currentUser = localStorage.getItem("carrent_current_user");
+            if (currentUser) {
+              try {
+                const user = JSON.parse(currentUser);
+                if (user.role === "owner" || user.role === "OWNER") {
+                  if (user.id) {
+                    localStorage.setItem(`carrent_owner_active_tab_${user.id}`, "bookings");
+                  }
+                  window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: "bookings" }));
+                }
+              } catch (err) {
+                // Fall through to regular navigation
               }
-              window.dispatchEvent(new CustomEvent("owner-tab-change", { detail: "bookings" }));
             }
-          } catch (err) {
-            // Fall through to regular navigation
+          } else {
+            navigate("/bookings");
+          }
+        }, 1500);
+      } catch (error) {
+        console.error('Error creating reservation:', error);
+        console.error('Error response:', error.response?.data);
+        console.error('Error details:', {
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data
+        });
+        
+        // Extract the actual error message from the nested exception if present
+        let errorMessage = error.response?.data?.message || error.message || 'Failed to create reservation';
+        
+        // Handle nested RemoteException messages
+        if (typeof errorMessage === 'string' && errorMessage.includes('RemoteException')) {
+          // Try to extract the inner message
+          const match = errorMessage.match(/java\.rmi\.RemoteException:\s*(.+?)(?:\n|$)/);
+          if (match && match[1]) {
+            errorMessage = match[1].trim();
           }
         }
-      } else {
-        navigate("/bookings");
+        
+        toast.error(`Error: ${errorMessage}`);
+        setIsSubmitting(false);
+        return;
       }
-    }, 1500);
+    } catch (err) {
+      console.error("Error creating reservation:", err);
+      toast.error(err.response?.data?.message || "Error creating reservation. Please try again.");
+      setIsSubmitting(false);
+    }
   };
 
   const handleFormChange = (e) => {
@@ -889,10 +1285,13 @@ export default function ReservationPage({ isEmbedded = false, carId: propCarId }
       )
     : 0;
   
+  // Ensure pricePerDay is a number for calculations
+  const carPricePerDay = car ? (typeof car.pricePerDay === 'number' ? car.pricePerDay : parseFloat(car.pricePerDay) || 0) : 0;
+  
   const insuranceCost = { basic: 50, premium: 100, full: 200 }[formData.insurance] || 0;
   const extrasCost = { gps: 25, wifi: 40, babySeat: 30, delivery: 150 };
   const extrasTotal = formData.extras.reduce((sum, extra) => sum + (extrasCost[extra] || 0), 0);
-  const subTotal = days * car.pricePerDay;
+  const subTotal = days * carPricePerDay;
   const totalPrice = subTotal + insuranceCost + extrasTotal;
 
   const steps = [
@@ -932,6 +1331,10 @@ export default function ReservationPage({ isEmbedded = false, carId: propCarId }
                 onToggleExtra={toggleExtra}
                 days={days}
                 subTotal={subTotal}
+                blockedDates={blockedDates}
+                setFormData={setFormData}
+                blockedDateWarning={blockedDateWarning}
+                setBlockedDateWarning={setBlockedDateWarning}
               />
             </form>
 

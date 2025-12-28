@@ -53,20 +53,7 @@ const CarCard = memo(function CarCard({ car, onClick }) {
           </div>
         )}
         
-        {/* Availability Badge */}
-        <div className="absolute top-3 right-3 z-20">
-          {isAvailable ? (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs font-semibold rounded-full shadow-lg backdrop-blur-sm">
-              <CheckCircle2 className="w-3 h-3" />
-              Available
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white text-xs font-semibold rounded-full shadow-lg backdrop-blur-sm">
-              <XCircle className="w-3 h-3" />
-              Reserved
-            </span>
-          )}
-        </div>
+        {/* Availability Badge - Removed as dates are now blocked in calendar */}
 
         {/* Distance Badge */}
         {car.__distanceKm !== undefined && (

@@ -122,8 +122,92 @@ function SignUp({ onSignedUp, onGoToSignIn }) {
     return countryCodes.find(item => item.code === code) || countryCodes[0];
   };
 
+  // Compress and resize image to reduce payload size
+  // More aggressive compression to ensure we stay under MySQL packet size limit
+  const compressImage = (file, maxWidth = 600, maxHeight = 600, maxSizeKB = 200) => {
+    return new Promise((resolve, reject) => {
+      // For PDFs, just convert to base64 without compression
+      if (file.type === 'application/pdf') {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      // For images, compress them aggressively
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // Calculate new dimensions (more aggressive resizing)
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+
+          // Create canvas
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          
+          // Use better quality settings for drawing
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Try progressively lower quality until we meet size requirement
+          const outputFormat = 'image/jpeg';
+          const maxSizeBytes = maxSizeKB * 1024;
+          let currentQuality = 0.6;
+          let attempts = 0;
+          const maxAttempts = 5;
+
+          const tryCompress = () => {
+            const compressedDataUrl = canvas.toDataURL(outputFormat, currentQuality);
+            // Calculate actual base64 size (remove data URL prefix)
+            const base64String = compressedDataUrl.split(',')[1];
+            const base64Size = (base64String.length * 3) / 4; // Approximate size in bytes
+
+            console.log(`Image compression attempt ${attempts + 1}: ${Math.round(base64Size / 1024)}KB at quality ${currentQuality.toFixed(2)}`);
+
+            if (base64Size <= maxSizeBytes || attempts >= maxAttempts) {
+              resolve(compressedDataUrl);
+            } else {
+              // Reduce quality and dimensions if needed
+              currentQuality = Math.max(0.2, currentQuality - 0.15);
+              
+              // If quality is getting very low, try reducing dimensions
+              if (currentQuality <= 0.35 && (width > 400 || height > 400)) {
+                width = Math.round(width * 0.8);
+                height = Math.round(height * 0.8);
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+              }
+              
+              attempts++;
+              tryCompress();
+            }
+          };
+
+          tryCompress();
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   // Handle file upload
-  const handleFileUpload = (file, setter) => {
+  const handleFileUpload = async (file, setter) => {
     if (!file) return;
 
     // Validate file type
@@ -133,7 +217,7 @@ function SignUp({ onSignedUp, onGoToSignIn }) {
       return;
     }
 
-    // Validate file size (max 5MB)
+    // Validate file size (max 5MB original)
     if (file.size > 5 * 1024 * 1024) {
       setError('File size should be less than 5MB');
       setTimeout(() => setError(''), 5000);
@@ -143,12 +227,15 @@ function SignUp({ onSignedUp, onGoToSignIn }) {
     // Clear any previous errors
     setError('');
 
-    // Convert to base64
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setter(reader.result);
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Compress image before converting to base64
+      const compressedBase64 = await compressImage(file);
+      setter(compressedBase64);
+    } catch (err) {
+      console.error('Error processing file:', err);
+      setError('Error processing file. Please try again.');
+      setTimeout(() => setError(''), 5000);
+    }
   };
 
   // Step 1: Basic info submission
@@ -176,14 +263,7 @@ function SignUp({ onSignedUp, onGoToSignIn }) {
       return;
     }
 
-    // Check if user already exists
-    const users = JSON.parse(localStorage.getItem("carrent_users") || "[]");
-    const existingUser = users.find((u) => u.email === email.toLowerCase());
-
-    if (existingUser) {
-      setError("An account with this email already exists.");
-      return;
-    }
+    // Email validation - API will check if user exists
 
     // Move to step 2
     setStep(2);
@@ -211,64 +291,120 @@ function SignUp({ onSignedUp, onGoToSignIn }) {
     try {
       setLoading(true);
 
-      // Check if user already exists (double check)
-      const users = JSON.parse(localStorage.getItem("carrent_users") || "[]");
-      const existingUser = users.find((u) => u.email === email.toLowerCase());
+      // Prepare user data for API
+      const phoneData = identity === "client" 
+        ? { phoneCountryCode: countryCode, phoneNumber }
+        : { phoneCountryCode: ownerCountryCode, phoneNumber: ownerPhoneNumber };
+      
+      const profileData = identity === "client"
+        ? {
+            profilePictureUrl: profilePicture,
+            drivingCardUrl: drivingCard,
+            nationalCardUrl: nationalCard,
+            address,
+            isCompany: false
+          }
+        : {
+            profilePictureUrl: ownerProfilePicture,
+            drivingCardUrl: ownerDrivingCard,
+            nationalCardUrl: ownerNationalCard,
+            address: ownerAddress,
+            isCompany: isCompany || false
+          };
 
-      if (existingUser) {
-        setError("An account with this email already exists.");
-        setLoading(false);
-        return;
+      const userData = {
+        fullName,
+        email: email.toLowerCase(),
+        password,
+        role: identity,
+        ...phoneData,
+        ...profileData
+      };
+
+      // Check total payload size before sending (safety check)
+      const payloadString = JSON.stringify(userData);
+      const payloadSizeMB = payloadString.length / (1024 * 1024);
+      
+      console.log(`Total payload size: ${payloadSizeMB.toFixed(2)} MB`);
+      
+      // MySQL max_allowed_packet is typically 1MB, so warn if we're close
+      if (payloadSizeMB > 0.9) {
+        console.warn('Payload size is large, may cause issues:', payloadSizeMB.toFixed(2), 'MB');
+        // Check individual image sizes
+        const images = [
+          { name: 'profilePictureUrl', data: profileData.profilePictureUrl },
+          { name: 'drivingCardUrl', data: profileData.drivingCardUrl },
+          { name: 'nationalCardUrl', data: profileData.nationalCardUrl }
+        ];
+        
+        images.forEach(img => {
+          if (img.data) {
+            const imgSize = (img.data.length * 3) / 4 / 1024; // Size in KB
+            console.log(`${img.name}: ${imgSize.toFixed(2)} KB`);
+          }
+        });
       }
 
-      // Create new user object with all information
-      const additionalInfo = identity === "client" ? {
-        profilePicture,
-        drivingCard,
-        nationalCard,
-        address,
-        phone: `${countryCode} ${phoneNumber}`,
-      } : {
-        profilePicture: ownerProfilePicture,
-        drivingCard: ownerDrivingCard,
-        nationalCard: ownerNationalCard,
-        address: ownerAddress,
-        phone: `${ownerCountryCode} ${ownerPhoneNumber}`,
-        isCompany,
-      };
-
-      const newUser = {
-        id: Date.now().toString(),
-        name: fullName,
-        email: email.toLowerCase(),
-        password: password, // In production, this should be hashed
-        role: identity,
-        ...additionalInfo,
-        createdAt: new Date().toISOString(),
-        bookings: [], // Initialize empty bookings array for new users
-      };
-
-      // Save to localStorage
-      users.push(newUser);
-      localStorage.setItem("carrent_users", JSON.stringify(users));
-      
-      // Initialize empty bookings for this user in localStorage
-      localStorage.setItem(`carrent_bookings_${newUser.id}`, JSON.stringify([]));
+      // Register via API
+      const { userAPI } = await import('./services/api');
+      const response = await userAPI.register(userData);
+      const newUser = response.data;
 
       // Store current session
-      const userData = {
+      const sessionData = {
         id: newUser.id,
-        name: newUser.name,
+        name: newUser.fullName || newUser.name,
         email: newUser.email,
         role: newUser.role,
+        profilePicture: newUser.profilePictureUrl || null,
       };
-      localStorage.setItem("carrent_current_user", JSON.stringify(userData));
+      localStorage.setItem("carrent_current_user", JSON.stringify(sessionData));
 
       if (onSignedUp) {
-        onSignedUp(userData);
+        onSignedUp(sessionData);
       }
     } catch (err) {
-      setError("Could not create account. Please try again.");
+      console.error("Registration error:", err);
+      
+      // Extract error message from response if available
+      let errorMessage = "Could not create account. Please try again.";
+      
+      if (err.response) {
+        // Server responded with error status
+        const status = err.response.status;
+        const data = err.response.data;
+        
+        // Check for specific error messages
+        const errorText = data?.message || data?.error || JSON.stringify(data);
+        
+        // Detect MySQL packet size error
+        if (errorText && (errorText.includes('PacketTooBig') || errorText.includes('max_allowed_packet') || errorText.includes('Packet for query is too large'))) {
+          errorMessage = "Image files are too large. Please use smaller images or compress them before uploading.";
+        } else if (data?.message) {
+          errorMessage = data.message;
+        } else if (data?.error) {
+          errorMessage = data.error;
+        } else if (status === 500) {
+          errorMessage = "Server error occurred. Please check your connection and try again.";
+        } else if (status === 400) {
+          errorMessage = "Invalid data provided. Please check all fields and try again.";
+        } else if (status === 409) {
+          errorMessage = "An account with this email already exists.";
+        } else if (status === 413) {
+          errorMessage = "File size too large. Please use smaller images.";
+        }
+        
+        console.error("Error response:", status, data);
+      } else if (err.request) {
+        // Request was made but no response received
+        errorMessage = "Could not connect to server. Please check your internet connection.";
+        console.error("No response received:", err.request);
+      } else {
+        // Error setting up the request
+        console.error("Request setup error:", err.message);
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
