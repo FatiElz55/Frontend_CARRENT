@@ -1,9 +1,16 @@
-# PowerShell script to start RMI Server
-# Run this script from the rmi-server directory
+# PowerShell script to start Spring API Server
+# Run this script from the spring-api directory
 
 $ErrorActionPreference = "Stop"
 
 function Find-Maven {
+    # First, check for Maven Wrapper (preferred)
+    $mvnwPath = Join-Path $PSScriptRoot "mvnw.cmd"
+    if (Test-Path $mvnwPath) {
+        Write-Host "Found Maven Wrapper: $mvnwPath" -ForegroundColor Green
+        return $mvnwPath
+    }
+    
     # Check if Maven is in PATH
     $mvnInPath = Get-Command mvn -ErrorAction SilentlyContinue
     if ($mvnInPath) {
@@ -11,7 +18,7 @@ function Find-Maven {
         return "mvn"
     }
     
-    # Check for mvnd (Maven Daemon)
+    # Check for mvnd (Maven Daemon) in PATH
     $mvndInPath = Get-Command mvnd -ErrorAction SilentlyContinue
     if ($mvndInPath) {
         Write-Host "Found Maven Daemon in PATH: $($mvndInPath.Source)" -ForegroundColor Green
@@ -47,19 +54,23 @@ function Install-MavenInstructions {
     Write-Host "`nMaven is not installed or not in your PATH." -ForegroundColor Red
     Write-Host "`nPlease choose one of the following options:`n" -ForegroundColor Cyan
     
-    Write-Host "Option 1: Install via Chocolatey (Recommended - if you have Chocolatey)" -ForegroundColor Green
+    Write-Host "Option 1: Use Maven Wrapper (Recommended)" -ForegroundColor Green
+    Write-Host "  .\mvnw.cmd spring-boot:run" -ForegroundColor White
+    Write-Host "  (The mvnw.cmd file should be in this directory)" -ForegroundColor Gray
+    
+    Write-Host "`nOption 2: Install via Chocolatey (if you have Chocolatey)" -ForegroundColor Green
     Write-Host "  choco install maven" -ForegroundColor White
     
-    Write-Host "`nOption 2: Install via Scoop (if you have Scoop)" -ForegroundColor Green
+    Write-Host "`nOption 3: Install via Scoop (if you have Scoop)" -ForegroundColor Green
     Write-Host "  scoop install maven" -ForegroundColor White
     
-    Write-Host "`nOption 3: Manual Installation" -ForegroundColor Green
+    Write-Host "`nOption 4: Manual Installation" -ForegroundColor Green
     Write-Host "  1. Download Maven from: https://maven.apache.org/download.cgi" -ForegroundColor White
     Write-Host "  2. Extract to a folder (e.g., C:\Program Files\Apache\maven)" -ForegroundColor White
     Write-Host "  3. Add Maven\bin to your PATH environment variable" -ForegroundColor White
     Write-Host "  4. Restart PowerShell and try again" -ForegroundColor White
     
-    Write-Host "`nOption 4: Use an IDE" -ForegroundColor Green
+    Write-Host "`nOption 5: Use an IDE" -ForegroundColor Green
     Write-Host "  Use IntelliJ IDEA, Eclipse, or VS Code with Java extensions to run the project" -ForegroundColor White
     
     Write-Host "`n=== End Installation Instructions ===`n" -ForegroundColor Yellow
@@ -85,25 +96,16 @@ if (-not $mavenCmd) {
     exit 1
 }
 
-Write-Host "`nBuilding RMI Server..." -ForegroundColor Cyan
+Write-Host "`nStarting Spring API Server..." -ForegroundColor Cyan
+Write-Host "The server will run on port 8080" -ForegroundColor Yellow
+Write-Host "Press Ctrl+C to stop the server`n" -ForegroundColor Yellow
 
 try {
-    # Build the project
-    & $mavenCmd clean install
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "`nBuild successful! Starting RMI Server..." -ForegroundColor Green
-        Write-Host "RMI Server will run on port 1099" -ForegroundColor Yellow
-        Write-Host "Press Ctrl+C to stop the server`n" -ForegroundColor Yellow
-        
-        # Run the server
-        $mavenArgs = @("exec:java", "-Dexec.mainClass=com.distributed.rmi.server.RMIServer")
-        & $mavenCmd $mavenArgs
-    } else {
-        Write-Host "`nBuild failed! Please check errors above." -ForegroundColor Red
-        exit 1
-    }
+    # Run the Spring Boot application
+    $mavenArgs = @("spring-boot:run")
+    & $mavenCmd $mavenArgs
 } catch {
     Write-Host "`nError executing Maven: $_" -ForegroundColor Red
     exit 1
 }
+

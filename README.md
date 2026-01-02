@@ -356,37 +356,254 @@ Frontend (reloads demands list)
 ## 🚀 Running the Application
 
 ### Prerequisites
-- Node.js 18+ and npm
-- Java 17 JDK
-- Maven (or mvnd)
-- MySQL 8.0+
 
-### Startup Order
+Before running the application, ensure you have the following installed:
 
-1. **Start MySQL Database**
-   - Ensure MySQL is running
-   - Run `database/schema.sql` to create database and tables
+1. **Node.js 18+ and npm**
+   - Download from: https://nodejs.org/
+   - Verify installation: `node --version` and `npm --version`
 
-2. **Start RMI Server**
+2. **Java 17 JDK or higher**
+   - Download from: https://www.oracle.com/java/technologies/downloads/ or use OpenJDK
+   - Verify installation: `java -version`
+   - Ensure `JAVA_HOME` is set correctly (optional but recommended)
+
+3. **Maven or Maven Daemon (mvnd)**
+   - Option A: Install Maven from https://maven.apache.org/download.cgi
+   - Option B: Use Maven Wrapper (included in spring-api project)
+   - Option C: Use Maven Daemon from XAMPP (if you have XAMPP installed)
+   - The provided PowerShell scripts will auto-detect Maven installations
+
+4. **MySQL 8.0+**
+   - Option A: Install MySQL from https://dev.mysql.com/downloads/mysql/
+   - Option B: Use XAMPP which includes MySQL (recommended for Windows)
+   - Default configuration uses: `localhost:3306`, user: `root`, password: (empty)
+
+5. **PowerShell** (for Windows startup scripts)
+   - Pre-installed on Windows 10/11
+
+### Step-by-Step Setup Instructions
+
+#### Step 1: Clone the Repository
+
+```bash
+git clone <repository-url>
+cd Frontend_CARRENT
+```
+
+#### Step 2: Database Setup
+
+1. **Start MySQL Server**
+   - If using XAMPP: Start MySQL from XAMPP Control Panel
+   - If using standalone MySQL: Start MySQL service
+
+2. **Create the Database**
+   - Open MySQL command line or use a MySQL client (phpMyAdmin, MySQL Workbench, etc.)
+   - Run the schema file:
    ```bash
-   cd rmi-server
-   mvnd exec:java
+   mysql -u root -p < database/schema.sql
    ```
-   - Server runs on port **1099**
+   Or copy and paste the contents of `database/schema.sql` into your MySQL client
+   
+   - This will create:
+     - Database: `car_rental_db`
+     - Tables: `users`, `cars`, `reservations`
+     - All necessary indexes
 
-3. **Start Spring Boot API**
-   ```bash
-   cd spring-api
-   mvnd spring-boot:run
-   ```
-   - API runs on port **8080**
+3. **Verify Database Connection**
+   - Database URL: `jdbc:mysql://localhost:3306/car_rental_db`
+   - Username: `root`
+   - Password: (empty by default in XAMPP)
+   - If your MySQL has a password, update `rmi-server/src/main/resources/database.properties`
 
-4. **Start React Frontend**
-   ```bash
-   npm install
-   npm run dev
-   ```
-   - Frontend runs on port **5173**
+#### Step 3: Start RMI Server (Port 1099)
+
+**Option A: Using PowerShell Script (Recommended for Windows)**
+
+```powershell
+cd rmi-server
+.\START_RMI_SERVER.ps1
+```
+
+The script will:
+- Check for Java installation
+- Auto-detect Maven/Maven Daemon (checks PATH, XAMPP location, and common install paths)
+- Build the project
+- Start the RMI server on port 1099
+
+**Option B: Using Maven Directly (if Maven is in PATH)**
+
+```bash
+cd rmi-server
+mvn clean install
+mvn exec:java -Dexec.mainClass="com.distributed.rmi.server.RMIServer"
+```
+
+**Option C: Using Maven Daemon from XAMPP**
+
+If you have XAMPP with Maven Daemon:
+```powershell
+cd rmi-server
+& "C:\xampp\apache\maven-mvnd-1.0.3-windows-amd64\bin\mvnd.exe" exec:java -Dexec.mainClass="com.distributed.rmi.server.RMIServer"
+```
+
+**Expected Output:**
+```
+RMI Registry created on port 1099
+CarRentalService bound to RMI registry with name: CarRentalService
+RMI Server is running and ready to accept requests...
+```
+
+**Keep this terminal window open!** The RMI server must remain running.
+
+#### Step 4: Start Spring Boot API (Port 8080)
+
+**Option A: Using PowerShell Script (Recommended for Windows)**
+
+```powershell
+cd spring-api
+.\START_SPRING_API.ps1
+```
+
+The script will:
+- Check for Java installation
+- Prefer Maven Wrapper (mvnw.cmd) if available
+- Auto-detect Maven/Maven Daemon as fallback
+- Start the Spring Boot application on port 8080
+
+**Option B: Using Maven Wrapper (Recommended - No Maven Installation Needed)**
+
+```bash
+cd spring-api
+.\mvnw.cmd spring-boot:run
+```
+
+On Linux/Mac:
+```bash
+cd spring-api
+./mvnw spring-boot:run
+```
+
+**Option C: Using Maven Directly (if Maven is in PATH)**
+
+```bash
+cd spring-api
+mvn spring-boot:run
+```
+
+**Expected Output:**
+```
+Started SpringApiApplication in X.XXX seconds
+Connected to RMI server at localhost:1099
+```
+
+**Keep this terminal window open!** The Spring API must remain running.
+
+#### Step 5: Install Frontend Dependencies
+
+```bash
+# Make sure you're in the Frontend_CARRENT directory (project root)
+npm install
+```
+
+This installs all React dependencies including Vite, React Router, TailwindCSS, etc.
+
+**Note:** If you encounter module errors, try:
+```bash
+# Clean install (removes node_modules and reinstalls)
+Remove-Item -Recurse -Force node_modules
+Remove-Item -Force package-lock.json
+npm cache clean --force
+npm install
+```
+
+#### Step 6: Start React Frontend (Port 5173)
+
+```bash
+npm run dev
+```
+
+**Expected Output:**
+```
+  VITE v7.x.x  ready in XXX ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+```
+
+Open your browser and navigate to: **http://localhost:5173**
+
+**Keep this terminal window open!** The frontend dev server must remain running.
+
+### Complete Startup Order Summary
+
+1. ✅ **MySQL Database** - Start MySQL service and create database
+2. ✅ **RMI Server** - Run on port **1099** (keep running)
+3. ✅ **Spring Boot API** - Run on port **8080** (keep running)
+4. ✅ **React Frontend** - Run on port **5173** (keep running)
+
+### Verification Checklist
+
+After starting all services, verify:
+
+- [ ] MySQL is running and `car_rental_db` database exists
+- [ ] RMI Server shows "RMI Server is running and ready to accept requests..."
+- [ ] Spring API shows "Connected to RMI server at localhost:1099"
+- [ ] Frontend loads at http://localhost:5173
+- [ ] No error messages in any terminal window
+
+### Troubleshooting
+
+**Problem: Maven not found**
+- Solution: The PowerShell scripts will provide installation instructions
+- Alternative: Use Maven Wrapper (`mvnw.cmd`) in spring-api directory
+- Alternative: Install Maven and add to PATH
+
+**Problem: Port already in use**
+- Port 1099 (RMI): Stop any other RMI servers or Java processes
+- Port 8080 (Spring API): Stop any other services using port 8080
+- Port 5173 (Frontend): Vite will automatically try the next available port
+
+**Problem: Cannot connect to database**
+- Verify MySQL is running
+- Check `rmi-server/src/main/resources/database.properties` for correct credentials
+- Verify database `car_rental_db` exists
+- Try connecting manually: `mysql -u root -p`
+
+**Problem: RMI connection failed in Spring API**
+- Ensure RMI Server is running BEFORE starting Spring API
+- Check RMI Server output for "RMI Server is running..."
+- Verify firewall isn't blocking port 1099
+
+**Problem: Frontend shows connection errors**
+- Verify Spring API is running on port 8080
+- Check browser console for specific error messages
+- Verify CORS is enabled in Spring Boot (should be enabled by default)
+
+**Problem: npm install fails or modules corrupted**
+- Run: `npm cache clean --force`
+- Delete `node_modules` and `package-lock.json`
+- Run: `npm install` again
+
+### Configuration Files
+
+Key configuration files you may need to modify:
+
+- **Database Connection**: `rmi-server/src/main/resources/database.properties`
+  ```properties
+  db.url=jdbc:mysql://localhost:3306/car_rental_db
+  db.user=root
+  db.password=your_password_here
+  ```
+
+- **Spring API Port**: `spring-api/src/main/resources/application.properties`
+  ```properties
+  server.port=8080
+  rmi.server.host=localhost
+  rmi.server.port=1099
+  ```
+
+- **Frontend API URL**: `src/services/api.js` (if API runs on different port)
 
 ---
 
@@ -428,6 +645,39 @@ Frontend (reloads demands list)
 - `spring-boot-starter-webmvc` - Spring Web framework
 - `mysql-connector-j` - MySQL driver
 - `gson` - JSON processing
+
+---
+
+---
+
+## ⚡ Quick Reference - Command Cheat Sheet
+
+For experienced users who just need the commands:
+
+```bash
+# 1. Database Setup (one-time)
+mysql -u root -p < database/schema.sql
+
+# 2. Start RMI Server (Terminal 1)
+cd rmi-server
+.\START_RMI_SERVER.ps1
+# Or: .\mvnw.cmd exec:java (if Maven Wrapper exists)
+# Or: mvn exec:java -Dexec.mainClass="com.distributed.rmi.server.RMIServer"
+
+# 3. Start Spring API (Terminal 2)
+cd spring-api
+.\START_SPRING_API.ps1
+# Or: .\mvnw.cmd spring-boot:run
+
+# 4. Start Frontend (Terminal 3)
+npm install  # First time only
+npm run dev
+```
+
+**Ports:**
+- RMI Server: `1099`
+- Spring API: `8080`
+- Frontend: `5173`
 
 ---
 
