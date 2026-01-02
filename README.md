@@ -370,7 +370,9 @@ Frontend (reloads demands list)
 2. **Start RMI Server**
    ```bash
    cd rmi-server
-   mvnd exec:java
+   mvnd exec:java 
+   #or
+   .\START_RMI_SERVER.ps1
    ```
    - Server runs on port **1099**
 
@@ -378,6 +380,8 @@ Frontend (reloads demands list)
    ```bash
    cd spring-api
    mvnd spring-boot:run
+   #or
+   .\mvnw.cmd spring-boot:run
    ```
    - API runs on port **8080**
 
